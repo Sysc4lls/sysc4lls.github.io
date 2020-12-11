@@ -3,8 +3,9 @@ author:
   name: Sysc4lls
 
 description: > # this means to ignore newlines until "show_excerpts:"
-              This blog is focused mainly on low level things I'm doing and ctf writeups!
-
+  his blog is focused mainly on low level 
+  things I'm doing and ctf writeups!
+  
 show_excerpts: false # set to true to show excerpts on the homepage
 
 # Minima date format
