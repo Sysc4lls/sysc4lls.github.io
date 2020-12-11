@@ -124,7 +124,6 @@
 .site-footer {
   border-top: 1px solid $border-color-01;
   padding: $spacing-unit 0;
-  height: 50%;
 }
 
 .footer-heading {
@@ -146,7 +145,6 @@
 .social-links {
   @include relative-font-size(0.9375);
   color: $brand-color;
-  margin-right: 10%;
 }
 
 .footer-col {
@@ -231,6 +229,7 @@
 
 .post-link {
   display: block;
+  color: $text-color;
   @include relative-font-size(1.5);
 }
 
@@ -292,6 +291,7 @@
 .social-media-list {
   display: table;
   margin: 0 auto;
+  margin-right: 10%;
   li {
     float: left;
     margin: 5px 10px 5px 0;
