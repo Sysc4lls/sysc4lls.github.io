@@ -178,7 +178,7 @@ So far all we did was overwrite the money address (`.bss` address) with the feed
 
 * %88c - This is just reading 88 characters because we need to overwrite the lower byte of the `.bss` pointer with 0x58.
 * %13$hhn - hhn means overwrite the lowest byte when %13 is the offset of the pointer we write to on the stack.
-* '|' - pipe lines are used to split the leaks so it's easier to parse later on
+* | - pipe lines are used to split the leaks so it's easier to parse later on
 * %10$p - The stack pointer is at the offset of 10 pointers on the stack
 * %29$p - The libc pointer is at the offset of 29 pointers on the stack
 
