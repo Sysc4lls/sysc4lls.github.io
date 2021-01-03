@@ -174,7 +174,7 @@ So far all we did was overwrite the money address (`.bss` address) with the feed
 
 #### Going over the format string:
 
-"%88c%13$hhn|%10$p|%29$p"
+"%88c%13$hhn\|%10$p\|%29$p"
 
 * %88c - This is just reading one character and padding it upto 88 characters because we need to overwrite the lower byte of the .bss pointer with 0x58.
 * %13$hhn - hhn means overwrite the lowest byte when %13 is the offset of the pointer we write to on the stack.
