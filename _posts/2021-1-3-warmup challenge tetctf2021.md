@@ -210,7 +210,7 @@ def main():
         
     # Try all possible 3 byte combinations for seed
     real_seed = -1
-	for seed in range(0xffffff):
+    for seed in range(0xffffff):
         count = 0
         libc_so.srand(seed)
         
