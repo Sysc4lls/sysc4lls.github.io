@@ -45,7 +45,7 @@ void game(PlayerObj *playerObj) {
     while (1) {
         printf("Round: %d\n", round);
         printf("Your money: %lu ZWD\n", *playerObj->amountMoney);
-	    printf("Your bet (= 0 to exit): ");
+        printf("Your bet (= 0 to exit): ");
         choice = getChoice();
         rand_num = rand();
         printf("Lucky number: %u\n", rand_num);
