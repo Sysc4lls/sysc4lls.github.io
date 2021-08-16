@@ -405,13 +405,14 @@ class JSArrayBuffer
           inline void AllocateExternalPointerEntries(Isolate* isolate);
 
           // [byte_length]: length in bytes
-          DECL_PRIMITIVE_ACCESSORS(byte_length, size_t) // Here is the size we looped until and changed
+          DECL_PRIMITIVE_ACCESSORS(byte_length, size_t) // (1) --> Here is the size we looped until and changed
 
           // [backing_store]: backing memory for this array
-          DECL_GETTER(backing_store, void*) // Here is the backing store which we want to overwrite later.
+          DECL_GETTER(backing_store, void*) // (2) --> Here is the backing store which we want to overwrite later.
 ```
 
-
+1. this is the the byte_length in the class, right after it comes the backing_store which is a `void *`.
+2. the backing store.
 
 ### Full exploit
 
