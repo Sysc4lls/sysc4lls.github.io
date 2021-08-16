@@ -106,7 +106,7 @@ function jit(letter){
 }
 
 // This loop will cause the function to get jitted (compiled to native code).
-for(let i = 0; i < 400000; i++){
+for(let i = 0; i < 40000; i++){
 	jit("f");
 }
 
@@ -344,6 +344,8 @@ write64_compressed(x, 0x41414141);
 
 The code above implements arbitrary read/write for compressed pointer objects.
 
+knowing that I would need the + 6 in the end just came to trial and error since I couldn't really understand where to find in v8's source code the memory layout of a normal floating point array.
+
 
 
 In order to implement arbitrary read/write for regular non-compressed pointers we can use a different object in js which it's backing store is actually just a pointer on the heap, the object is an `ArrayBuffer`
@@ -378,6 +380,36 @@ for(let i = 0; i < 100; i++){
 ```
 
 In the above code the arbitrary write is implemented (because that's all I needed for the exploit), but it shouldn't be to hard to convert it to an arbitrary read as well.
+
+I knew the correct index for the ArrayBuffer element backing store would be right after it's size thanks to the following code that can be found [here](https://github.com/v8/v8/blob/master/src/objects/js-array-buffer.h)
+
+```c++
+class JSArrayBuffer
+    : public TorqueGeneratedJSArrayBuffer<JSArrayBuffer, JSObject> {
+ public:
+        // ...
+        // The maximum length for JSArrayBuffer's supported by V8.
+        // On 32-bit architectures we limit this to 2GiB, so that
+        // we can continue to use CheckBounds with the Unsigned31
+        // restriction for the length.
+        #if V8_HOST_ARCH_32_BIT
+          static constexpr size_t kMaxByteLength = kMaxInt;
+        #else
+          static constexpr size_t kMaxByteLength = kMaxSafeInteger;
+        #endif
+
+          // When soft sandbox is enabled, creates entries in external pointer table for
+          // all JSArrayBuffer's fields that require soft sandbox protection (backing
+          // store pointer, backing store length, etc.).
+          // When sandbox is not enabled, it's a no-op.
+          inline void AllocateExternalPointerEntries(Isolate* isolate);
+
+          // [byte_length]: length in bytes
+          DECL_PRIMITIVE_ACCESSORS(byte_length, size_t) // Here is the size we looped until and changed
+
+          // [backing_store]: backing memory for this array
+          DECL_GETTER(backing_store, void*) // Here is the backing store which we want to overwrite later.
+```
 
 
 
@@ -531,4 +563,3 @@ shellcode();
 
 // END
 ```
-
