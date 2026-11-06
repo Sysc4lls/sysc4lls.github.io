@@ -613,6 +613,8 @@ function resetLV(){ clearTimeout(LV.rt); try{ LV.peer && LV.peer.destroy(); }cat
 const GRACE = 120000;     // כמה זמן שחקן מנותק נשאר בחדר לפני שהוא מוסר
 const HB = 3000, HB_DEAD = 10000;
 const SESS = 'pof_sess';
+// בחדר ההמתנה (לפני שהסבב התחיל, או בין סבבים) אף אחד לא מוסר: אפשר לחזור מתי שרוצים
+const waiting = () => !LV.g || LV.g.st==='lobby' || LV.g.st==='end';
 
 // ---- שמירת מסך דולק ----
 let wake = null;
@@ -683,7 +685,7 @@ function hostHousekeeping(){
   const now = Date.now(); let changed = false;
   for (const [k,p] of LV.players){
     if (p.on && now-(p.seen||0) > HB_DEAD){ p.on=false; p.offAt=now; try{ p.conn&&p.conn.close(); }catch(e){} p.conn=null; changed=true; }
-    if (!p.on && now-(p.offAt||now) > GRACE){ LV.players.delete(k); changed=true; }
+    if (!p.on && !waiting() && now-(p.offAt||now) > GRACE){ LV.players.delete(k); changed=true; }
   }
   if (now-(LV.lastHB||0) > HB){ LV.lastHB=now; for (const p of LV.players.values()) if (p.on && p.conn && p.conn.open){ try{ p.conn.send({t:'p'}); }catch(e){} } }
   if (changed) broadcast();
@@ -703,7 +705,8 @@ function broadcast(){
 }
 function lvSet(patch){ LV.g = {...LV.g, ...patch, at:Date.now()}; broadcast(); liveLoop(true); }
 function lvStart(){
-  for (const p of LV.players.values()) p.ans = {};
+  const now = Date.now();
+  for (const p of LV.players.values()){ p.ans = {}; if (!p.on) p.offAt = now; } // מי שלא מחובר כשהסבב מתחיל מקבל 2 דקות לחזור
   LV.myAns = {};
   lvSet({id:rid(), st:'pre', n:lvN, t:lvT, qs:genRound(lvN), i:0});
 }
@@ -776,7 +779,7 @@ function onHostData(conn, d){
 function lost(){
   if (LV.left || LV.host || LV.rt) return;
   LV.conn = null; LV.reconn = (LV.reconn||0)+1;
-  if (LV.reconn > 30){ LV.err='לא הצלחתי להתחבר שוב לחדר. ייתכן שהמארח סגר אותו.'; store.set(SESS,null); render(); return; }
+  if (LV.reconn > 30 && !(LV.g && waiting())){ LV.err='לא הצלחתי להתחבר שוב לחדר. ייתכן שהמארח סגר אותו.'; LV.gaveUp=true; render(); return; }
   LV.status='החיבור נפל, מתחבר מחדש…'; render();
   LV.rt = setTimeout(()=>{ LV.rt=null; connectPlayer(false); }, Math.min(5000, 600*LV.reconn));
 }
@@ -803,7 +806,7 @@ document.addEventListener('visibilitychange', ()=>{
   if (document.visibilityState!=='visible' || view!=='live') return;
   keepAwake();
   if (LV.host) hostEnsure();
-  else if (!LV.left && !LV.err && (!LV.conn || !LV.conn.open || Date.now()-LV.lastPing > 6000)){ LV.reconn=0; clearTimeout(LV.rt); LV.rt=null; connectPlayer(false); }
+  else if (!LV.left && (!LV.err || LV.gaveUp) && (!LV.conn || !LV.conn.open || Date.now()-LV.lastPing > 6000)){ LV.reconn=0; LV.err=''; LV.gaveUp=false; clearTimeout(LV.rt); LV.rt=null; connectPlayer(false); }
 });
 
 // ---- לוגיקה משותפת ----
