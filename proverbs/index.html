@@ -533,7 +533,7 @@ function fbHTML({state, pts=0, streak=0, place='', q, btn=''}){
   return `<div class="fb ${state} fade"><div class="icon">${ic}</div><div class="big">${title}</div>
     ${state==='ok'&&pts?`<div class="pts">+${pts}</div>`:''}
     ${streak>=2?`<div class="streak">🔥 ${streak} ברצף</div>`:''}
-    ${ans}${place?`<div class="place">${place}</div>`:''}${btn?`<div class="btns">${btn}</div>`:''}</div>`;
+    ${ans}<div data-live="place">${place?`<div class="place">${place}</div>`:''}</div>${btn?`<div class="btns">${btn}</div>`:''}</div>`;
 }
 function boardHTML(rows, {meKey=null, limit=99}={}){
   const s = rows.slice().sort((a,b)=>b.sc-a.sc); let last=null, pos=0;
@@ -565,23 +565,33 @@ const seg = (id, vals, cur, fmt) => `<div class="seg">${vals.map(v=>`<button dat
 
 // ===================== ניווט =====================
 let view = 'home', lastHTML = '';
-function paint(h){
+// המסך נבנה מחדש רק כשעוברים מסך (שאלה חדשה, חשיפה, טבלה וכו').
+// בתוך אותו מסך מתעדכנים רק האזורים המסומנים data-live (מונה עונים, רשימת שחקנים, מקום וניקוד).
+let lastKey = null;
+function patchRegion(cur, next){
+  if (cur.outerHTML===next.outerHTML) return;
+  if (window.morphdom) morphdom(cur, next.cloneNode(true));
+  else { cur.className = next.className; cur.innerHTML = next.innerHTML; }
+}
+function paint(h, key, force){
+  if (force || key!==lastKey){ lastKey=key; lastHTML=h; app.innerHTML=h; updateRing(); return; }
   if (h===lastHTML) return;
   lastHTML=h;
-  if (window.morphdom){
-    // עדכון רק של מה שהשתנה: בלי קפיצות, בלי אנימציות שמתחילות מחדש, בלי לאבד פוקוס
-    morphdom(app, '<div id="app">'+h+'</div>', {childrenOnly:true,
-      onBeforeElUpdated:(from,to)=>{ if (from.id==='ringfg'||from.id==='tnum') return false; if (from.id==='ring'){ to.className = from.className; } if (from===document.activeElement && from.tagName==='INPUT'){ to.value = from.value; } return !from.isEqualNode(to); }});
-  } else {
-    const a = document.activeElement, id = a && a.id && a.tagName==='INPUT' ? a.id : null;
-    const v = id ? a.value : null, ss = id ? a.selectionStart : null;
-    app.innerHTML=h;
-    if (id){ const el=$('#'+id); if (el){ el.value=v; el.focus(); try{ el.setSelectionRange(ss,ss); }catch(e){} } }
-  }
-  updateRing();
+  const tpl = document.createElement('template'); tpl.innerHTML = h;
+  tpl.content.querySelectorAll('[data-live]').forEach(n=>{ const cur = app.querySelector(`[data-live="${n.dataset.live}"]`); if (cur) patchRegion(cur, n); });
 }
-function go(v){ view=v; T=null; lastHTML=''; render(); window.scrollTo(0,0); }
-function render(){ paint({home:homeHTML, join:joinHTML, live:liveHTML}[view]()); }
+function screenKey(){
+  if (view!=='live') return view+'|'+joinBusy+'|'+joinErr;
+  const g = LV.g;
+  if (LV.err) return 'err|'+LV.err;
+  if (!g) return 'nog|'+LV.status;
+  const mine = LV.myAns['a'+g.i] ? 1 : 0;
+  const timeUp = g.st==='q' && timeLeft()<=0 ? 1 : 0;
+  const st = !LV.host && (g.st==='rev'||g.st==='board') ? 'fb' : g.st; // אצל שחקן, חשיפה וטבלה הם אותו מסך
+  return ['live', LV.host?'h':'p', g.id, st, g.i, mine, timeUp, LV.plays?1:0].join('|');
+}
+function go(v){ view=v; T=null; render(true); window.scrollTo(0,0); }
+function render(force){ paint({home:homeHTML, join:joinHTML, live:liveHTML}[view](), screenKey(), force); }
 setInterval(()=>{
   if (T){ updateRing(); if (timeLeft()<=0 && !T.fired){ T.fired=true; T.onEnd && T.onEnd(); } }
   if (view==='live') liveLoop();
@@ -740,12 +750,12 @@ function lvNext(){
 function joinRoom(){
   const pin=($('#jpin').value||'').replace(/\D/g,''), nm=($('#jnm').value||'').trim();
   joinErr = pin.length!==4 ? 'קוד החדר הוא 4 ספרות' : !nm ? 'צריך שם' : !window.Peer ? 'רכיב החיבור לא נטען, רעננו את העמוד' : '';
-  if (joinErr){ lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm; return; }
+  if (joinErr){ render(true); $('#jpin').value=pin; $('#jnm').value=nm; return; }
   store.set('pof_me', nm);
   const sess = store.get(SESS, null);
   resetLV(); LV.nm=nm; LV.pin=pin;
   if (sess && sess.pin===pin && Date.now()-sess.at < 3*3600e3) LV.myKey = sess.key;
-  joinBusy=true; lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm;
+  joinBusy=true; render(true); $('#jpin').value=pin; $('#jnm').value=nm;
   connectPlayer(true);
 }
 function connectPlayer(first){
@@ -759,7 +769,7 @@ function connectPlayer(first){
       joinBusy=false; const pin=LV.pin, nm=LV.nm;
       joinErr = type==='peer-unavailable' ? 'לא נמצא חדר עם הקוד הזה. בדקו שהמארח עדיין בעמוד.' : 'לא הצלחתי להתחבר לחדר. נסו שוב.';
       try{ LV.peer && LV.peer.destroy(); }catch(e){}
-      lastHTML=''; render(); const a=$('#jpin'), b=$('#jnm'); if (a) a.value=pin; if (b) b.value=nm; return;
+      render(true); const a=$('#jpin'), b=$('#jnm'); if (a) a.value=pin; if (b) b.value=nm; return;
     }
     lost();
   };
@@ -869,7 +879,7 @@ function liveHTML(){
   if (LV.err) return `${top}<div class="card center"><h3>${esc(LV.err)}</h3><div class="gap"></div><button class="btn dark" data-act="leave">חזרה</button></div>`;
   const g = LV.g;
   if (!g) return `${top}<div class="pre"><div class="wait"><i></i><i></i><i></i></div><h2>${esc(LV.status||'מתחבר…')}</h2></div>`;
-  const banner = !LV.host && LV.status ? `<div class="center" style="margin:0 0 10px"><span class="count" style="background:#ec5444">📡 ${esc(LV.status)}</span></div>` : '';
+  const banner = !LV.host ? `<div data-live="banner">${LV.status ? `<div class="center" style="margin:0 0 10px"><span class="count" style="background:#ec5444">📡 ${esc(LV.status)}</span></div>` : ''}</div>` : '';
   return LV.host ? hostHTML(g, top) : (banner + playerHTML(g, top));
 }
 function hostHTML(g, top){
@@ -882,13 +892,13 @@ function hostHTML(g, top){
     if (g.st==='end'){
       const rows = lvScores(g);
       return `${top}<div class="fade"><h2 class="center" style="font:900 34px Rubik;margin:10px 0 0">🏆 הפודיום</h2>${podiumHTML(rows)}
-        <div class="card">${boardHTML(rows)}</div><div class="card"><h3>עוד סבב?</h3>${settings}<div class="gap2"></div><button class="btn go" data-act="start" ${on.length?'':'disabled'}>סבב חדש, שאלות חדשות ▶</button></div></div>`;
+        <div class="card" data-live="board">${boardHTML(rows)}</div><div class="card"><h3>עוד סבב?</h3>${settings}<div class="gap2"></div><button class="btn go" data-act="start" ${on.length?'':'disabled'}>סבב חדש, שאלות חדשות ▶</button></div></div>`;
     }
     return `${top}<div class="fade"><div class="pinbox"><div class="l">קוד החדר</div><div class="pin">${esc(LV.pin)}</div>
        <div class="gap"></div><button class="btn dark" data-act="copy" data-text="${esc('בואו לשחק פתגם או פייק! 🎯 '+link)}">העתקת קישור הזמנה</button><div class="note" id="copied"></div></div>
-      <div class="center"><span class="count">👥 ${on.length} ${on.length===1?'שחקן':'שחקנים'}</span></div>
-      <div class="players">${ps.length?ps.map(p=>`<span class="pl ${p.key==='host'?'me':''}" style="${p.on?'':'opacity:.45'}">${p.on?'':'⏳ '}${esc(p.nm)}</span>`).join(''):'<div class="dim-txt" style="padding:14px">מחכים לשחקנים…</div>'}</div>
-      <div class="card">${settings}<div class="gap2"></div><button class="btn go" data-act="start" ${on.length?'':'disabled'}>התחל ▶</button></div></div>`;
+      <div class="center" data-live="pcount"><span class="count">👥 ${on.length} ${on.length===1?'שחקן':'שחקנים'}</span></div>
+      <div class="players" data-live="plist">${ps.length?ps.map(p=>`<span class="pl ${p.key==='host'?'me':''}" style="${p.on?'':'opacity:.45'}">${p.on?'':'⏳ '}${esc(p.nm)}</span>`).join(''):'<div class="dim-txt" style="padding:14px">מחכים לשחקנים…</div>'}</div>
+      <div class="card">${settings}<div class="gap2"></div><div data-live="startbtn"><button class="btn go" data-act="start" ${on.length?'':'disabled'}>התחל ▶</button></div></div></div>`;
   }
   const q = lvQ(g, g.i);
   if (g.st==='pre') return `${top}<div class="pre"><div class="qn">שאלה ${g.i+1} מתוך ${n}</div><div class="qk">${KICON[q.y]} ${KINDS[q.y]}</div>${qcardHTML(q)}<div class="bar"><i></i></div></div>`;
@@ -896,17 +906,17 @@ function hostHTML(g, top){
     const mine = LV.plays && LV.myAns['a'+g.i] ? LV.myAns['a'+g.i][0] : null;
     const done = on.filter(p=>lvAns(p,g.i)).length;
     return `${top}<div class="fade">${headHTML(q,g.i,n,true)}${qcardHTML(q)}${tilesHTML(q,{chosen:mine, interactive:LV.plays})}
-      <div class="answered"><span class="count">✋ ענו ${done}/${on.length}</span></div><div class="gap"></div><div class="center"><button class="btn line sm" data-act="skip" style="color:#fff">סיום זמן</button></div></div>`;
+      <div class="answered" data-live="acount"><span class="count">✋ ענו ${done}/${on.length}</span></div><div class="gap"></div><div class="center"><button class="btn line sm" data-act="skip" style="color:#fff">סיום זמן</button></div></div>`;
   }
   if (g.st==='rev'){
     const counts=[0,0,0,0]; ps.forEach(p=>{ const a=lvAns(p,g.i); if (a) counts[a[0]]++; });
     const mine = LV.plays && LV.myAns['a'+g.i] ? LV.myAns['a'+g.i][0] : null;
-    return `${top}<div class="fade">${headHTML(q,g.i,n,false)}${qcardHTML(q)}${tilesHTML(q,{reveal:true, counts, interactive:false})}
-      <p class="center dim-txt" style="font-weight:600">${counts[q.correct]} מתוך ${on.length} צדקו${LV.plays?` · ${mine===q.correct?'גם אתה ✓':'אתה לא ✗'}`:''}</p>
+    return `${top}<div class="fade">${headHTML(q,g.i,n,false)}${qcardHTML(q)}<div data-live="rtiles">${tilesHTML(q,{reveal:true, counts, interactive:false})}</div>
+      <p class="center dim-txt" style="font-weight:600" data-live="rsum">${counts[q.correct]} מתוך ${on.length} צדקו${LV.plays?` · ${mine===q.correct?'גם אתה ✓':'אתה לא ✗'}`:''}</p>
       <button class="btn" data-act="next">לטבלה ‹</button></div>`;
   }
   if (g.st==='board'){
-    return `${top}<div class="fade"><h2 class="center" style="font:900 30px Rubik;margin:14px 0">טבלת המובילים</h2><div class="card">${boardHTML(lvScores(g),{limit:5})}</div>
+    return `${top}<div class="fade"><h2 class="center" style="font:900 30px Rubik;margin:14px 0">טבלת המובילים</h2><div class="card" data-live="board">${boardHTML(lvScores(g),{limit:5})}</div>
       <button class="btn go" data-act="next">${g.i+1<n?'שאלה הבאה ‹':'לפודיום 🏆'}</button></div>`;
   }
   return top;
@@ -915,13 +925,13 @@ function playerHTML(g, top){
   const ps = plist(), n = g.qs.length, mk = meKey();
   if (g.st==='lobby'){
     return `${top}<div class="pre fade"><div class="dim-txt" style="font-weight:600">אתה בפנים!</div><div class="bigname">${esc((ps.find(p=>p.key===mk)||{}).nm||LV.nm)}</div>
-      <p class="dim-txt">רואה את השם שלך אצל המארח?</p><div class="wait"><i></i><i></i><i></i></div><span class="count">👥 ${ps.filter(p=>p.on).length} בחדר · מחכים שהמארח יתחיל</span></div>`;
+      <p class="dim-txt">רואה את השם שלך אצל המארח?</p><div class="wait"><i></i><i></i><i></i></div><span class="count" data-live="pcount">👥 ${ps.filter(p=>p.on).length} בחדר · מחכים שהמארח יתחיל</span></div>`;
   }
   if (g.st==='end'){
     const rows = lvScores(g), s = rows.slice().sort((a,b)=>b.sc-a.sc), my = rows.find(r=>r.key===mk);
     const pos = my ? s.findIndex(r=>r.sc===my.sc)+1 : 0;
     return `${top}<div class="fade"><h2 class="center" style="font:900 30px Rubik;margin:10px 0 0">${pos===1?'ניצחת! 👑':pos?`מקום ${pos}`:'הסבב נגמר'}</h2>${podiumHTML(rows)}
-      <div class="card">${boardHTML(rows,{meKey:mk})}</div><p class="center dim-txt">הישארו בחדר, המארח יכול לפתוח סבב נוסף</p></div>`;
+      <div class="card" data-live="board">${boardHTML(rows,{meKey:mk})}</div><p class="center dim-txt">הישארו בחדר, המארח יכול לפתוח סבב נוסף</p></div>`;
   }
   const q = lvQ(g, g.i);
   if (g.st==='pre') return `${top}<div class="pre"><div class="qn">שאלה ${g.i+1} מתוך ${n}</div><div class="qk">${KICON[q.y]} ${KINDS[q.y]}</div>${qcardHTML(q)}<div class="bar"><i></i></div></div>`;
@@ -945,8 +955,8 @@ app.addEventListener('click', e=>{
     case 'gojoin': joinErr=''; go('join'); break;
     case 'gohost': openHost(); break;
     case 'join': joinRoom(); break;
-    case 'seg': { const v=+b.dataset.v; if (b.dataset.id==='lvn') lvN=v; else lvT=v; lastHTML=''; render(); break; }
-    case 'plays': LV.plays=!LV.plays; broadcast(); lastHTML=''; render(); break;
+    case 'seg': { const v=+b.dataset.v; if (b.dataset.id==='lvn') lvN=v; else lvT=v; render(true); break; }
+    case 'plays': LV.plays=!LV.plays; broadcast(); render(true); break;
     case 'start': lvStart(); window.scrollTo(0,0); break;
     case 'next': lvNext(); window.scrollTo(0,0); break;
     case 'skip': lvSet({st:'rev'}); break;
@@ -962,7 +972,7 @@ app.addEventListener('click', e=>{
 app.addEventListener('input', e=>{
   if (e.target.id==='hostnm'){ const nm=e.target.value.trim(); if (nm){ LV.nm=nm; store.set('pof_me', nm); broadcast(); } }
 });
-app.addEventListener('change', e=>{ if (e.target.id==='hostnm'){ lastHTML=''; render(); } });
+app.addEventListener('change', e=>{ if (e.target.id==='hostnm'){ render(true); } });
 window.addEventListener('beforeunload', e=>{ if (LV.host && LV.g && LV.g.st!=='lobby' && LV.g.st!=='end'){ e.preventDefault(); e.returnValue=''; } });
 (function(){
   const sess = store.get(SESS, null);
