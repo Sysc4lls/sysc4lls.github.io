@@ -6,6 +6,7 @@
 <title>פתגם או פייק?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/morphdom@2.7.4/dist/morphdom-umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700;900&family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -566,10 +567,18 @@ const seg = (id, vals, cur, fmt) => `<div class="seg">${vals.map(v=>`<button dat
 let view = 'home', lastHTML = '';
 function paint(h){
   if (h===lastHTML) return;
-  const a = document.activeElement, id = a && a.id && a.tagName==='INPUT' ? a.id : null;
-  const v = id ? a.value : null, ss = id ? a.selectionStart : null;
-  lastHTML=h; app.innerHTML=h; updateRing();
-  if (id){ const el=$('#'+id); if (el){ el.value=v; el.focus(); try{ el.setSelectionRange(ss,ss); }catch(e){} } }
+  lastHTML=h;
+  if (window.morphdom){
+    // עדכון רק של מה שהשתנה: בלי קפיצות, בלי אנימציות שמתחילות מחדש, בלי לאבד פוקוס
+    morphdom(app, '<div id="app">'+h+'</div>', {childrenOnly:true,
+      onBeforeElUpdated:(from,to)=>{ if (from.id==='ringfg'||from.id==='tnum') return false; if (from.id==='ring'){ to.className = from.className; } if (from===document.activeElement && from.tagName==='INPUT'){ to.value = from.value; } return !from.isEqualNode(to); }});
+  } else {
+    const a = document.activeElement, id = a && a.id && a.tagName==='INPUT' ? a.id : null;
+    const v = id ? a.value : null, ss = id ? a.selectionStart : null;
+    app.innerHTML=h;
+    if (id){ const el=$('#'+id); if (el){ el.value=v; el.focus(); try{ el.setSelectionRange(ss,ss); }catch(e){} } }
+  }
+  updateRing();
 }
 function go(v){ view=v; T=null; lastHTML=''; render(); window.scrollTo(0,0); }
 function render(){ paint({home:homeHTML, join:joinHTML, live:liveHTML}[view]()); }
@@ -611,10 +620,18 @@ function joinHTML(){
 }
 function resetLV(){ clearTimeout(LV.rt); try{ LV.peer && LV.peer.destroy(); }catch(e){} Object.assign(LV,{peer:null, host:false, pin:'', plays:false, g:null, players:new Map(), pl:[], myKey:null, conn:null, myAns:{}, recv:{}, qc:{}, fx:{}, err:'', status:'', rt:null, reconn:0, lastPing:0, left:false}); T=null; }
 const GRACE = 120000;     // כמה זמן שחקן מנותק נשאר בחדר לפני שהוא מוסר
-const HB = 3000, HB_DEAD = 10000;
+// דופק: השחקן שולח פינג כל 3 שניות והמארח עונה מיד (בתוך אירוע ההודעה, כך שזה עובד גם כשלשונית המארח ברקע)
+const HB = 3000, HOST_DEAD = 30000, PLAYER_DEAD = 15000;
 const SESS = 'pof_sess';
 // בחדר ההמתנה (לפני שהסבב התחיל, או בין סבבים) אף אחד לא מוסר: אפשר לחזור מתי שרוצים
 const waiting = () => !LV.g || LV.g.st==='lobby' || LV.g.st==='end';
+
+// ---- טיימר ב-Worker: לא מואט כשהלשונית ברקע ----
+function netTick(){ if (view!=='live') return; hostHousekeeping(); playerWatchdog(); }
+try{
+  const w = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
+  w.onmessage = netTick;
+}catch(e){ setInterval(netTick, 1000); }
 
 // ---- שמירת מסך דולק ----
 let wake = null;
@@ -635,7 +652,7 @@ function hostPeer(pin, onOpen, onErr){
   peer.on('connection', conn=>{
     conn.on('data', d=>hostOnData(conn, d));
     conn.on('close', ()=>markOffline(conn));
-    conn.on('error', ()=>markOffline(conn));
+    conn.on('error', ()=>{});
   });
   peer.on('disconnected', ()=>{ setTimeout(()=>{ try{ if (peer.disconnected && !peer.destroyed) peer.reconnect(); }catch(e){} }, 1000); });
   peer.on('error', e=>{
@@ -658,6 +675,7 @@ function hostOnData(conn, d){
   if (!d || typeof d!=='object') return;
   const now = Date.now();
   if (conn.key && LV.players.has(conn.key)) LV.players.get(conn.key).seen = now;
+  if (d.t==='p'){ try{ conn.send({t:'q'}); }catch(e){} if (conn.key && LV.players.has(conn.key) && !LV.players.get(conn.key).on){ const p=LV.players.get(conn.key); p.on=true; p.conn=conn; delete p.offAt; broadcast(); } return; }
   if (d.t==='j'){
     let nm = String(d.nm||'').trim().slice(0,16) || 'שחקן';
     let key = typeof d.key==='string' && LV.players.has(d.key) ? d.key : null;
@@ -683,11 +701,13 @@ function hostOnData(conn, d){
 function hostHousekeeping(){
   if (!LV.host) return;
   const now = Date.now(); let changed = false;
+  // אם הלולאה של המארח הוקפאה (לשונית ברקע), לא להאשים את השחקנים
+  if (LV.lastHK && now-LV.lastHK > 5000) for (const p of LV.players.values()) if (p.on) p.seen = now;
+  LV.lastHK = now;
   for (const [k,p] of LV.players){
-    if (p.on && now-(p.seen||0) > HB_DEAD){ p.on=false; p.offAt=now; try{ p.conn&&p.conn.close(); }catch(e){} p.conn=null; changed=true; }
+    if (p.on && now-(p.seen||0) > HOST_DEAD){ p.on=false; p.offAt=now; try{ p.conn&&p.conn.close(); }catch(e){} p.conn=null; changed=true; }
     if (!p.on && !waiting() && now-(p.offAt||now) > GRACE){ LV.players.delete(k); changed=true; }
   }
-  if (now-(LV.lastHB||0) > HB){ LV.lastHB=now; for (const p of LV.players.values()) if (p.on && p.conn && p.conn.open){ try{ p.conn.send({t:'p'}); }catch(e){} } }
   if (changed) broadcast();
 }
 function plist(){
@@ -755,7 +775,7 @@ function connectPlayer(first){
     });
     conn.on('data', d=>onHostData(conn, d));
     conn.on('close', ()=>{ if (LV.conn===conn) lost(); });
-    conn.on('error', ()=>{ if (LV.conn===conn) lost(); });
+    conn.on('error', ()=>{});
   });
   peer.on('error', e=>{ if (!done) failed(e.type); else if (LV.conn && !LV.conn.open) lost(); });
   peer.on('disconnected', ()=>{ /* החיבור לשרת התיווך נפל; הערוץ למארח עשוי להמשיך לעבוד */ });
@@ -763,7 +783,7 @@ function connectPlayer(first){
 function onHostData(conn, d){
   if (!d || conn!==LV.conn) return;
   LV.lastPing = Date.now();
-  if (d.t==='p'){ try{ conn.send({t:'q'}); }catch(e){} return; }
+  if (d.t==='q') return;
   if (d.t!=='s') return;
   const prevG = LV.g;
   LV.g = d.g; LV.pl = d.pl||[]; LV.myKey = d.you; LV.status='';
@@ -785,7 +805,11 @@ function lost(){
 }
 function playerWatchdog(){
   if (LV.host || LV.left || !LV.pin || view!=='live' || LV.err) return;
-  if (LV.conn && Date.now()-LV.lastPing > HB_DEAD){ try{ LV.conn.close(); }catch(e){} LV.conn=null; lost(); }
+  const now = Date.now();
+  if (LV.lastWD && now-LV.lastWD > 5000) LV.lastPing = now; // הלשונית שלי הייתה מוקפאת, לתת לה הזדמנות
+  LV.lastWD = now;
+  if (LV.conn && LV.conn.open && now-(LV.lastSent||0) >= HB){ LV.lastSent = now; try{ LV.conn.send({t:'p'}); }catch(e){} }
+  if (LV.conn && now-LV.lastPing > PLAYER_DEAD){ try{ LV.conn.close(); }catch(e){} LV.conn=null; lost(); }
 }
 function lvAnswer(k){
   const g = LV.g; if (!g || g.st!=='q') return;
@@ -805,8 +829,9 @@ function leaveRoom(){
 document.addEventListener('visibilitychange', ()=>{
   if (document.visibilityState!=='visible' || view!=='live') return;
   keepAwake();
+  if (!LV.host && LV.conn && LV.conn.open){ try{ LV.conn.send({t:'p'}); }catch(e){} }
   if (LV.host) hostEnsure();
-  else if (!LV.left && (!LV.err || LV.gaveUp) && (!LV.conn || !LV.conn.open || Date.now()-LV.lastPing > 6000)){ LV.reconn=0; LV.err=''; LV.gaveUp=false; clearTimeout(LV.rt); LV.rt=null; connectPlayer(false); }
+  else if (!LV.left && (!LV.err || LV.gaveUp) && (!LV.conn || !LV.conn.open || Date.now()-LV.lastPing > PLAYER_DEAD)){ LV.reconn=0; LV.err=''; LV.gaveUp=false; clearTimeout(LV.rt); LV.rt=null; connectPlayer(false); }
 });
 
 // ---- לוגיקה משותפת ----
@@ -821,7 +846,6 @@ function lvScores(g){
 const meKey = () => LV.host ? 'host' : LV.myKey;
 function liveLoop(force){
   const g = LV.g;
-  hostHousekeeping(); playerWatchdog();
   if (LV.host && g){
     const now = Date.now();
     if (g.st==='pre' && now-g.at >= PRE){ lvSet({st:'q'}); return; }
