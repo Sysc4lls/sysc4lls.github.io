@@ -564,7 +564,13 @@ const seg = (id, vals, cur, fmt) => `<div class="seg">${vals.map(v=>`<button dat
 
 // ===================== ניווט =====================
 let view = 'home', lastHTML = '';
-function paint(h){ if (h!==lastHTML){ lastHTML=h; app.innerHTML=h; updateRing(); } }
+function paint(h){
+  if (h===lastHTML) return;
+  const a = document.activeElement, id = a && a.id && a.tagName==='INPUT' ? a.id : null;
+  const v = id ? a.value : null, ss = id ? a.selectionStart : null;
+  lastHTML=h; app.innerHTML=h; updateRing();
+  if (id){ const el=$('#'+id); if (el){ el.value=v; el.focus(); try{ el.setSelectionRange(ss,ss); }catch(e){} } }
+}
 function go(v){ view=v; T=null; lastHTML=''; render(); window.scrollTo(0,0); }
 function render(){ paint({home:homeHTML, join:joinHTML, live:liveHTML}[view]()); }
 setInterval(()=>{
@@ -739,7 +745,8 @@ function hostHTML(g, top){
   if (g.st==='lobby' || g.st==='end'){
     const link = location.origin+location.pathname+'#'+LV.pin;
     const settings = `<label>מספר שאלות</label>${seg('lvn',[5,8,10,15,20],lvN,v=>v)}<label>שניות לשאלה</label>${seg('lvt',[10,15,20,30],lvT,v=>v)}
-      <div class="toggle ${LV.plays?'on':''}" data-act="plays"><span class="sw"></span>גם אני משחק מהמכשיר הזה</div>`;
+      <div class="toggle ${LV.plays?'on':''}" data-act="plays"><span class="sw"></span>גם אני משחק מהמכשיר הזה</div>
+      ${LV.plays?`<label>השם שלך במשחק</label><input id="hostnm" maxlength="16" value="${esc(LV.nm)}" placeholder="השם שלך">`:''}`;
     if (g.st==='end'){
       const rows = lvScores(g);
       return `${top}<div class="fade"><h2 class="center" style="font:900 34px Rubik;margin:10px 0 0">🏆 הפודיום</h2>${podiumHTML(rows)}
@@ -820,6 +827,10 @@ app.addEventListener('click', e=>{
     }
   }
 });
+app.addEventListener('input', e=>{
+  if (e.target.id==='hostnm'){ const nm=e.target.value.trim(); if (nm){ LV.nm=nm; store.set('pof_me', nm); broadcast(); } }
+});
+app.addEventListener('change', e=>{ if (e.target.id==='hostnm'){ lastHTML=''; render(); } });
 window.addEventListener('beforeunload', e=>{ if (LV.host && LV.g && LV.g.st!=='lobby' && LV.g.st!=='end'){ e.preventDefault(); e.returnValue=''; } });
 if (prefillPin) view='join';
 render();
