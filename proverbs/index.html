@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>פתגם או פייק?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700;900&family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#1d1147; --bg2:#3b1d7a; --ink:#1f1440; --muted:#7b7396; --line:#e7e3f3; --soft:#f4f1fb;
+  --c0:#13a89e; --c0d:#0b7a72; --c1:#ec5444; --c1d:#b33427; --c2:#7c4dff; --c2d:#5530c4; --c3:#f2a516; --c3d:#b77806;
+  --ok:#21a35a; --bad:#e0443a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;font-family:Rubik,system-ui,sans-serif;color:#fff;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;background:radial-gradient(900px 600px at 100% 0%,#5b2bb0 0,transparent 55%),radial-gradient(800px 600px at 0% 100%,#2a1666 0,transparent 60%),linear-gradient(160deg,var(--bg2),var(--bg1));background-attachment:fixed}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.06;background:
+  repeating-linear-gradient(45deg,#fff 0 2px,transparent 2px 26px)}
+#app{position:relative;max-width:620px;margin:0 auto;padding:16px 16px 40px;min-height:100vh}
+button{font-family:inherit}
+.serif{font-family:"Frank Ruhl Libre",serif}
+.fade{animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.08)}100%{transform:none;opacity:1}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6px) rotate(3deg)}}
+
+/* ---------- כפתורים ---------- */
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:16px 18px;font:800 18px Rubik;cursor:pointer;background:#fff;color:var(--ink);
+  box-shadow:0 5px 0 #bfb4ea;transition:transform .07s,box-shadow .07s;position:relative;top:0}
+.btn:active{top:3px;box-shadow:0 2px 0 #bfb4ea}
+.btn.go{background:var(--c0);color:#fff;box-shadow:0 5px 0 var(--c0d)}.btn.go:active{box-shadow:0 2px 0 var(--c0d)}
+.btn.hot{background:var(--c1);color:#fff;box-shadow:0 5px 0 var(--c1d)}.btn.hot:active{box-shadow:0 2px 0 var(--c1d)}
+.btn.dark{background:var(--ink);color:#fff;box-shadow:0 5px 0 #0b0620}.btn.dark:active{box-shadow:0 2px 0 #0b0620}
+.btn.line{background:transparent;color:inherit;box-shadow:none;border:2px solid currentColor;opacity:.8;padding:13px}
+.btn.sm{display:inline-block;width:auto;padding:10px 16px;font-size:15px}
+.btn:disabled{opacity:.35;pointer-events:none}
+.back{background:none;border:0;color:#d9d0ff;font:600 15px Rubik;cursor:pointer;padding:6px 0;white-space:nowrap}
+.gap{height:12px}.gap2{height:22px}
+.center{text-align:center}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}
+
+/* ---------- כרטיסים ---------- */
+.card{background:#fff;color:var(--ink);border-radius:20px;padding:20px;margin:14px 0;box-shadow:0 18px 40px -20px rgba(0,0,0,.55)}
+.card h2{margin:0 0 6px;font:800 24px Rubik}
+.card h3{margin:0 0 8px;font:800 18px Rubik}
+.card .muted,.muted{color:var(--muted)}
+.dim-txt{color:#cfc6f5}
+label{display:block;font:600 14px Rubik;color:var(--muted);margin:14px 0 7px}
+input{width:100%;padding:15px;border-radius:13px;border:2px solid var(--line);background:var(--soft);font:600 18px Rubik;color:var(--ink)}
+input:focus{outline:none;border-color:var(--c2);background:#fff}
+.seg{display:flex;background:var(--soft);border-radius:13px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:transparent;padding:11px 4px;border-radius:10px;font:700 15px Rubik;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--ink);color:#fff}
+.err{color:var(--bad);font:600 14px Rubik;margin-top:10px;min-height:18px}
+.toggle{display:flex;align-items:center;gap:12px;margin-top:14px;cursor:pointer;font:600 16px Rubik}
+.toggle .sw{width:48px;height:28px;border-radius:99px;background:var(--line);position:relative;flex:0 0 48px;transition:background .2s}
+.toggle .sw:after{content:"";position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:right .2s}
+.toggle.on .sw{background:var(--c0)}.toggle.on .sw:after{right:23px}
+
+/* ---------- בית ---------- */
+.logo{text-align:center;padding:30px 0 10px}
+.logo .tiles4{display:inline-grid;grid-template-columns:repeat(2,26px);gap:5px;margin-bottom:14px;animation:float 4s ease-in-out infinite}
+.logo .tiles4 i{width:26px;height:26px;border-radius:7px;display:block}
+.logo h1{font:900 56px/1 "Frank Ruhl Libre",serif;margin:0;letter-spacing:-1px}
+.logo h1 em{font-style:normal;color:#ffcf5c}
+.logo p{color:#d9d0ff;margin:12px 0 0;font-size:17px}
+.mode{display:flex;align-items:center;gap:14px;width:100%;text-align:right;border:0;cursor:pointer;padding:16px;font:inherit;color:var(--ink);transition:transform .08s}
+.mode:active{transform:scale(.98)}
+.mode .ic{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;flex:0 0 56px;color:#fff}
+.mode b{display:block;font:800 18px Rubik;margin-bottom:3px}
+.mode small{color:var(--muted);font-size:14px;line-height:1.35;display:block}
+.mode .tag{display:inline-block;font:700 11px Rubik;background:#ffe9b0;color:#7a5200;padding:2px 8px;border-radius:99px;margin-inline-start:6px;vertical-align:middle}
+.types{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.type{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;font-size:13px;color:#d9d0ff;line-height:1.4}
+.type b{display:block;color:#fff;font-size:15px;margin-bottom:2px}
+
+/* ---------- אריחי תשובות ---------- */
+.tiles{display:grid;gap:10px}
+.tiles.two{grid-template-columns:1fr 1fr}
+.tile{display:flex;align-items:center;gap:12px;min-height:74px;border:0;border-radius:14px;padding:14px 16px;color:#fff;cursor:pointer;
+  font:700 20px/1.3 "Frank Ruhl Libre",serif;text-align:right;position:relative;top:0;transition:transform .07s,opacity .25s}
+.tile:active{top:3px}
+.tile .sh{flex:0 0 30px;height:30px}
+.tile .tx{flex:1}
+.tile .mk{display:block;font:600 13px Rubik;opacity:.9;margin-top:4px}
+.tile .ct{font:800 20px Rubik;background:rgba(0,0,0,.18);border-radius:10px;padding:4px 10px;min-width:40px;text-align:center}
+.two .tile{flex-direction:column;justify-content:center;min-height:160px;font:900 26px Rubik;gap:10px}
+.two .tile .sh{flex:0 0 44px;height:44px;width:44px}
+.t0{background:var(--c0);box-shadow:0 5px 0 var(--c0d)}.t1{background:var(--c1);box-shadow:0 5px 0 var(--c1d)}
+.t2{background:var(--c2);box-shadow:0 5px 0 var(--c2d)}.t3{background:var(--c3);box-shadow:0 5px 0 var(--c3d)}
+.tile.off{opacity:.25}
+.tile.pick{outline:4px solid #fff;outline-offset:2px}
+.tile.right{outline:4px solid #fff;outline-offset:2px;animation:pop .4s}
+.tile[disabled]{cursor:default}
+.tile.right .tx:after{content:" ✓";font-family:Rubik}
+
+/* ---------- מסך שאלה ---------- */
+.qhead{display:flex;align-items:center;gap:12px;margin:2px 0 12px}
+.qhead .meta{flex:1}
+.qhead .num{font:800 16px Rubik}
+.kind{display:inline-block;font:700 12px Rubik;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.16);margin-top:5px}
+.prog{height:6px;border-radius:9px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:7px}
+.prog i{display:block;height:100%;background:#ffcf5c;border-radius:9px}
+.ring{width:58px;height:58px;flex:0 0 58px;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring .n{position:absolute;inset:0;display:grid;place-items:center;font:900 21px Rubik;font-variant-numeric:tabular-nums}
+.ring circle{fill:none;stroke-width:6}.ring .bg{stroke:rgba(255,255,255,.18)}.ring .fg{stroke:#ffcf5c;stroke-linecap:round;transition:stroke-dashoffset .2s linear}
+.ring.low .fg{stroke:var(--c1)}
+.qcard{background:#fff;color:var(--ink);border-radius:18px;padding:16px 18px;margin-bottom:14px;box-shadow:0 14px 30px -16px rgba(0,0,0,.5)}
+.qcard .pr{font:700 16px Rubik;color:var(--muted)}
+.qcard .qt{font:900 30px/1.3 "Frank Ruhl Libre",serif;text-align:center;margin:10px 0 4px}
+.answered{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:14px;color:#d9d0ff;font:600 15px Rubik}
+.who{text-align:center;color:#d9d0ff;margin:-4px 0 10px}.who b{color:#fff}
+
+/* ---------- פידבק מלא ---------- */
+.fb{margin:-16px -16px 0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 24px;text-align:center}
+.fb.ok{background:radial-gradient(circle at 50% 30%,#3bd17b,#1a8a49)}
+.fb.no{background:radial-gradient(circle at 50% 30%,#f2685d,#b82e25)}
+.fb.none{background:radial-gradient(circle at 50% 30%,#8a7fb5,#4b3f7c)}
+.fb .big{font:900 54px Rubik;animation:pop .45s}
+.fb .icon{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;font:900 56px Rubik;margin-bottom:14px;animation:pop .45s}
+.fb .pts{font:800 26px Rubik;background:rgba(0,0,0,.2);padding:8px 20px;border-radius:99px;margin-top:12px;direction:ltr}
+.fb .streak{margin-top:12px;font:700 17px Rubik}
+.fb .place{margin-top:26px;font:700 18px Rubik;background:rgba(0,0,0,.18);padding:12px 18px;border-radius:14px;line-height:1.5}
+.fb .ans{margin-top:16px;font:700 18px "Frank Ruhl Libre",serif;opacity:.95;max-width:420px}
+.fb .ans small{display:block;font:600 13px Rubik;opacity:.8;margin-top:3px}
+.fb .btns{width:100%;max-width:420px;margin-top:26px}
+
+/* ---------- לוחות ---------- */
+.brow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:13px;background:var(--soft);margin-bottom:8px;font:700 17px Rubik;animation:fade .35s both}
+.brow .p{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#fff;color:var(--muted);font:800 15px Rubik}
+.brow.r1 .p{background:#ffcf5c;color:#5b3d00}.brow.r2 .p{background:#dcdcec;color:#47476a}.brow.r3 .p{background:#f2c39c;color:#6b3b12}
+.brow .nm{flex:1}.brow .sc{font:900 19px Rubik;font-variant-numeric:tabular-nums}
+.brow.me{background:#ece6ff;outline:2px solid var(--c2)}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:10px;margin:20px 0 10px;min-height:250px}
+.pod{flex:1;max-width:150px;text-align:center}
+.pod .nm{font:800 17px Rubik;margin-bottom:4px;word-break:break-word}
+.pod .sc{font:600 14px Rubik;color:#d9d0ff;margin-bottom:6px}
+.pod .blk{border-radius:12px 12px 0 0;display:grid;place-items:start center;padding-top:10px;font:900 40px Rubik;color:rgba(0,0,0,.35);animation:rise .8s cubic-bezier(.2,1.3,.4,1) both}
+.pod.p1 .blk{height:170px;background:linear-gradient(#ffd96b,#f2a516)}.pod.p2 .blk{height:120px;background:linear-gradient(#e7e7f3,#b9b9d4)}.pod.p3 .blk{height:85px;background:linear-gradient(#f6cfac,#d9925a)}
+.pod.p1 .blk{animation-delay:.9s}.pod.p2 .blk{animation-delay:.45s}
+@keyframes rise{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1);transform-origin:bottom}}
+
+/* ---------- לובי ---------- */
+.pinbox{text-align:center;background:#fff;color:var(--ink);border-radius:20px;padding:18px 16px;margin:10px 0 14px;box-shadow:0 18px 40px -20px rgba(0,0,0,.55)}
+.pinbox .l{font:700 15px Rubik;color:var(--muted)}
+.pin{font:900 64px/1.05 Rubik;letter-spacing:10px;direction:ltr}
+.code8{font:900 40px/1.1 Rubik;letter-spacing:4px;direction:ltr}
+.code8 span{margin:0 8px}
+.players{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:50px;margin:10px 0}
+.pl{background:#fff;color:var(--ink);font:800 17px Rubik;padding:10px 16px;border-radius:12px;animation:pop .4s both;box-shadow:0 4px 0 #bfb4ea}
+.pl.me{background:#ffcf5c;box-shadow:0 4px 0 #c08a10}
+.count{display:inline-flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);padding:8px 14px;border-radius:99px;font:800 16px Rubik}
+.wait{display:flex;gap:6px;justify-content:center;margin:20px 0}
+.wait i{width:12px;height:12px;border-radius:50%;background:#fff;animation:bounce 1.2s infinite}
+.wait i:nth-child(2){animation-delay:.15s}.wait i:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-10px);opacity:1}}
+.bigname{font:900 44px "Frank Ruhl Libre",serif;margin:8px 0;animation:pop .5s}
+.pre{min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.pre .qn{font:800 18px Rubik;color:#d9d0ff}
+.pre .qk{font:900 40px Rubik;margin:8px 0 18px;animation:pop .4s}
+.pre .bar{width:70%;height:8px;border-radius:9px;background:rgba(255,255,255,.18);overflow:hidden}
+.pre .bar i{display:block;height:100%;background:#ffcf5c;animation:fill 3s linear forwards}
+@keyframes fill{from{width:0}to{width:100%}}
+.bigcd{font:900 130px/1 Rubik;color:#ffcf5c;animation:pop .5s}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;display:flex;gap:10px;margin:10px 0;font-size:15px;line-height:1.45;color:var(--muted)}
+.steps li:before{content:counter(s);flex:0 0 26px;height:26px;border-radius:8px;background:var(--soft);color:var(--c2);display:grid;place-items:center;font-weight:800}
+.note{font:600 14px Rubik;color:var(--muted);text-align:center;margin-top:10px}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:10}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="app"></div>
+<script>
+// ===================== תוכן =====================
+const REAL = [
+["אל תסתכל בקנקן אלא במה שיש בו","פרקי אבות"],
+["אין חכם כבעל ניסיון","פתגם עממי"],
+["מרוב עצים לא רואים את היער","פתגם עממי"],
+["שתיקה כהודאה","תלמוד בבלי"],
+["סייג לחכמה שתיקה","פרקי אבות"],
+["דברי חכמים בנחת נשמעים","קהלת"],
+["כל הפוסל במומו פוסל","תלמוד בבלי"],
+["תפסת מרובה לא תפסת","תלמוד בבלי"],
+["עשה לך רב וקנה לך חבר","פרקי אבות"],
+["כבדהו וחשדהו","מסכת דרך ארץ"],
+["אל תפתח פה לשטן","תלמוד בבלי"],
+["פה שאסר הוא הפה שהתיר","משנה"],
+["כל המוסיף גורע","תלמוד בבלי"],
+["זה נהנה וזה לא חסר","תלמוד בבלי"],
+["אין עני אלא בדעת","תלמוד בבלי"],
+["מצווה גוררת מצווה","פרקי אבות"],
+["שכר מצווה מצווה","פרקי אבות"],
+["לפום צערא אגרא","פרקי אבות"],
+["טוב שם משמן טוב","קהלת"],
+["מים גנובים ימתקו","משלי"],
+["לפני שבר גאון","משלי"],
+["אין כל חדש תחת השמש","קהלת"],
+["החוט המשולש לא במהרה ינתק","קהלת"],
+["שלח לחמך על פני המים","קהלת"],
+["ברוב חכמה רוב כעס","קהלת"],
+["גדול המעשה יותר מן העושה","תלמוד בבלי"],
+["אין הקומץ משביע את הארי","תלמוד בבלי"],
+["חכם עדיף מנביא","תלמוד בבלי"],
+["לא הביישן למד ולא הקפדן מלמד","פרקי אבות"],
+["קוף בעיני אמו צבי","פתגם עממי"],
+["לא דובים ולא יער","תלמוד בבלי"],
+["משנה מקום משנה מזל","פתגם עממי"],
+["מי שטרח בערב שבת יאכל בשבת","תלמוד בבלי"],
+["אין אדם מת וחצי תאוותו בידו","קהלת רבה"],
+["מענה רך ישיב חמה","משלי"],
+["כורה שחת בה יפול","משלי"],
+["הלעיטהו לרשע וימות","תלמוד בבלי"],
+["שב ואל תעשה עדיף","תלמוד בבלי"],
+["אחד בפה ואחד בלב","תלמוד בבלי"],
+["אין אדם לומד אלא ממקום שליבו חפץ","תלמוד בבלי"],
+["במקום שאין אנשים השתדל להיות איש","פרקי אבות"],
+["כמים הפנים לפנים כן לב האדם לאדם","משלי"],
+["המרבה דברים מביא חטא","פרקי אבות"],
+["מרבה נכסים מרבה דאגה","פרקי אבות"],
+["מתוך שלא לשמה בא לשמה","תלמוד בבלי"],
+["אין חבוש מתיר עצמו מבית האסורים","תלמוד בבלי"],
+["אין אדם משים עצמו רשע","תלמוד בבלי"],
+["תן לחכם ויחכם עוד","משלי"],
+["טוב שכן קרוב מאח רחוק","משלי"],
+["ברוב עם הדרת מלך","משלי"],
+["ברזל בברזל יחד","משלי"],
+["מעוות לא יוכל לתקון","קהלת"],
+["שבע יפול צדיק וקם","משלי"],
+["יש אוהב דבק מאח","משלי"],
+["לב יודע מרת נפשו","משלי"],
+["אם אין קמח אין תורה","פרקי אבות"],
+["אם אין דעת הבדלה מניין","תלמוד ירושלמי"],
+["כל המשנה ידו על התחתונה","משנה"],
+["המוציא מחברו עליו הראיה","תלמוד בבלי"],
+["דינא דמלכותא דינא","תלמוד בבלי"],
+["אדם מועד לעולם","משנה"],
+["שלוחו של אדם כמותו","משנה"],
+["כקוף בפני אדם","תלמוד בבלי"],
+["צרת רבים חצי נחמה","פתגם עממי"],
+["מים רבים לא יוכלו לכבות את האהבה","שיר השירים"],
+["אחרון אחרון חביב","פתגם עממי"],
+["מעשה אבות סימן לבנים","פרשנות המקרא"],
+["כל הבורח מן הכבוד הכבוד רודף אחריו","פתגם עממי"],
+["קנאת סופרים תרבה חכמה","תלמוד בבלי"],
+["עבד כי ימלוך","משלי"],
+["גם אויל מחריש חכם יחשב","משלי"],
+["משל הקדמוני מרשעים יצא רשע","שמואל א׳"],
+["דברים שבלב אינם דברים","תלמוד בבלי"],
+["הגונב מגנב פטור","פתגם עממי"],
+["אין לך עשב שאין לו מזל ברקיע","בראשית רבה"],
+["המתרפה במלאכתו אח הוא לבעל משחית","משלי"],
+["חבל על דאבדין ולא משתכחין","תלמוד בבלי"],
+["כלו כל הקיצין","תלמוד בבלי"],
+["נעוץ סופן בתחילתן","ספר יצירה"],
+["אין אפוטרופוס לעריות","תלמוד בבלי"],
+["על טעם ועל ריח אין להתווכח","פתגם עממי"],
+["כאן קבור הכלב","פתגם עממי"],
+["אל תדון את חברך עד שתגיע למקומו","פרקי אבות"],
+["הוי דן את כל האדם לכף זכות","פרקי אבות"],
+["סוף מעשה במחשבה תחילה","לכה דודי"],
+["יפה שעה אחת קודם","פתגם עממי"],
+["דבר בעתו מה טוב","משלי"],
+["חנוך לנער על פי דרכו","משלי"],
+["מעט מן האור דוחה הרבה מן החושך","פתגם עממי"],
+["אין מזל לישראל","תלמוד בבלי"],
+["לא בשמיים היא","דברים"],
+["אל תאמין בעצמך עד יום מותך","פרקי אבות"],
+["בשלושה דברים אדם ניכר: בכוסו, בכיסו ובכעסו","תלמוד בבלי"],
+["הקנאה, התאווה והכבוד מוציאין את האדם מן העולם","פרקי אבות"],
+["עזה כמוות אהבה","שיר השירים"],
+["פת במלח תאכל ומים במשורה תשתה","פרקי אבות"],
+["אין הדבר תלוי אלא בי","תלמוד בבלי"],
+["טוב ארוחת ירק ואהבה שם","משלי"],
+["אוהב כסף לא ישבע כסף","קהלת"],
+["הכל הולך אחר החיתום","תלמוד בבלי"],
+["גדולה שימושה יותר מלימודה","תלמוד בבלי"],
+["צדיק באמונתו יחיה","חבקוק"],
+["אל תתהלל ביום מחר","משלי"],
+["אל יתהלל חוגר כמפתח","מלכים א׳"],
+["יש לו מנה רוצה מאתיים","קהלת רבה"],
+["טובים השניים מן האחד","קהלת"],
+["אהבה מקלקלת את השורה","בראשית רבה"],
+["כל אהבה שהיא תלויה בדבר, בטל דבר בטלה אהבה","פרקי אבות"],
+["כל הדוחק את השעה השעה דוחקתו","תלמוד בבלי"],
+["עקב ענווה יראת ה׳","משלי"],
+["אין אדם חוטא אלא אם כן נכנס בו רוח שטות","תלמוד בבלי"],
+["עם לבדד ישכון","במדבר"],
+["הזורעים בדמעה ברינה יקצורו","תהלים"],
+["טוב פת חרבה ושלוה בה","משלי"],
+["אין לדיין אלא מה שעיניו רואות","תלמוד בבלי"],
+["אל תאמר לכשאפנה אשנה שמא לא תפנה","פרקי אבות"],
+["איזהו עשיר? השמח בחלקו","פרקי אבות"],
+["לא המדרש הוא העיקר אלא המעשה","פרקי אבות"],
+["מה ששנוא עליך אל תעשה לחברך","תלמוד בבלי"],
+["אם אין אני לי מי לי","פרקי אבות"],
+["אין נביא בעירו","פתגם עממי"]
+];
+
+// פתגמים מומצאים — נשמעים אמיתיים בכוונה
+const FAKE = [
+"כל המרבה בשאלות ממעט בתשובות",
+"אין הנר מאיר אלא למי שמחזיק בו",
+"מרבה ידידים מרבה סודות",
+"הכל הולך אחר הפתיחה",
+"אין הים מתמלא מטיפה אחת",
+"מי שלא שתל בקיץ לא יקצור בחורף",
+"טוב חבר שותק משלושה מדברים",
+"אין הזאב נאמן על הטלה",
+"כל הממהר לשאול ממהר לשכוח",
+"אין המים שואלים את האבן",
+"חכם בלילה כסיל בבוקר",
+"אין עני בעיר שיש בה באר",
+"ענווה בלא חכמה כבית בלא דלת",
+"אין הדבש נשאל מאין בא",
+"גם עורב משבח את גוזליו",
+"אין שובע לעין ואין מנוחה לרגל",
+"לא כל היודע לשתוק יודע לדבר",
+"כל הבונה גדר לחברו נגדר בה",
+"אין אדם יורש את חכמת אביו",
+"אין הלחם מתבייש בתנור",
+"לא הגשם מצמיח אלא הזורע",
+"מרבה שינה מרבה חלומות",
+"אין הכלי מחזיק אלא כמידתו",
+"העני רואה את השוק והעשיר רואה את הכיס",
+"גדולה שאלה מתשובה",
+"אין מרפא לעין צרה",
+"אין העץ נידון אלא על פי פירותיו",
+"אין מפתח לבית ריק",
+"בדק הבית קודם לבניין",
+"אין אדם שומע אלא למה שליבו חפץ",
+"כל המחזיק בשני מקלות סופו ליפול",
+"קל לבנות שם וקשה לנקותו",
+"שתיקת העשיר חכמה ושתיקת העני עצבות",
+"אין הנחל זוכר את מקורו",
+"המתכבד בקלון חברו קלונו כפול",
+"מים עמוקים אינם רועשים",
+"טוב שכן ישן משני חדשים",
+"שומר פיו שומר ביתו",
+"אין דורשין חכמה מפי כסיל",
+"לא מן הכבש אתה לומד ריצה",
+"אין חכמה כחכמת השתיקה",
+"לא בנה עיר מי שלא חפר באר",
+"אין הקערה מחזיקה יותר ממלואה",
+"אין תבלין לדבר כשתיקה",
+"אדם נמדד בשעת כעסו",
+"החכם רואה את סוף הדרך מתחילתה",
+"גדול השואל מן המשיב",
+"כל המקדים לשלום שלומו כפול",
+"מי שאין לו פת בסלו אין לו מנוחה",
+"אין הגפן נותנת פרי לעצל",
+"מי שזורע רוח אינו קוצר עשב",
+"כל הנושא עיניו לשמיים נכשל באבן",
+"טוב דבר אחד בעתו משני דברים בשפע",
+"אין האריה נמדד בשאגתו",
+"כל המספר בשבח חברו מוסיף לשמו",
+"אין הדרך ארוכה למי שיודע לאן",
+"חכם הלומד מטעותו עדיף על צדיק שאינו טועה",
+"אל תשאל את הבאר מתי תתייבש"
+];
+
+// גרסאות: הראשונה היא המקור, השאר משובשות
+const VERS = [
+["איזהו עשיר? השמח בחלקו","איזהו עשיר? המסתפק במועט","איזהו עשיר? השמח במה שיש לו","איזהו עשיר? השמח בחלק חברו"],
+["הכל הולך אחר החיתום","הכל הולך אחר הפתיחה","הכל הולך אחר החותם","הכל הולך אחר המעשה"],
+["צדיק באמונתו יחיה","איש באמונתו יחיה","צדיק בתמימותו יחיה","צדיק באמונתו ישכון"],
+["סייג לחכמה שתיקה","גדר לחכמה שתיקה","סייג לחכמה ענווה","סייג לבינה שתיקה"],
+["אין הקומץ משביע את הארי","אין הפירור משביע את הארי","אין הקומץ משביע את הדוב","אין הקומץ מרווה את הארי"],
+["טוב שכן קרוב מאח רחוק","טוב שכן רחוק מאח קרוב","טוב שכן קרוב מאוהב רחוק","טוב רע קרוב מאח רחוק"],
+["אין נביא בעירו","אין נביא בארצו","אין חכם בעירו","אין נביא בביתו"],
+["לא דובים ולא יער","לא זאבים ולא יער","לא דובים ולא מערה","לא דובים ולא שדה"],
+["כל המוסיף גורע","כל המוסיף מקלקל","כל המרבה גורע","כל המוסיף נגרע"],
+["ברזל בברזל יחד","ברזל בברזל ישחיז","אבן באבן יחד","ברזל באבן יחד"],
+["שבע יפול צדיק וקם","שבע יפול חכם וקם","שבעים יפול צדיק וקם","שבע יפול צדיק ונשען"],
+["יש אוהב דבק מאח","יש רע דבק מאח","יש אוהב קרוב מאח","יש אוהב דבק מאב"],
+["קוף בעיני אמו צבי","קוף בעיני אמו אריה","קוף בעיני אביו צבי","קוף בעיני אמו איל"],
+["עשה לך רב וקנה לך חבר","קנה לך רב ועשה לך חבר","עשה לך רב ובחר לך חבר","עשה לך חבר וקנה לך רב"],
+["לא המדרש הוא העיקר אלא המעשה","לא הלימוד הוא העיקר אלא המעשה","לא המדרש הוא העיקר אלא הכוונה","לא הדרש הוא העיקר אלא המעשה"],
+["מה ששנוא עליך אל תעשה לחברך","מה שאהוב עליך עשה לחברך","מה ששנוא עליך אל תאמר לחברך","מה ששנוא על חברך אל תעשה לו"],
+["אל תדון את חברך עד שתגיע למקומו","אל תשפוט את חברך עד שתגיע למקומו","אל תדון את חברך עד שתעמוד במקומו","אל תדון את רעך עד שתגיע לביתו"],
+["דברי חכמים בנחת נשמעים","דברי חכמים בשקט נשמעים","דברי חכמים בנחת נאמרים","דברי חכמים בנחת נשמרים"],
+["מענה רך ישיב חמה","מענה רך ישקיט חמה","מענה רך ישיב כעס","דיבור רך ישיב חמה"],
+["כורה שחת בה יפול","כורה שחת בה ייקבר","חופר שחת בה ישכב","כורה שחת בה יילכד"],
+["טוב שם משמן טוב","טוב שם משמן זית","טוב שם מכסף טוב","טוב שם משמן יקר"],
+["הלעיטהו לרשע וימות","הלעיטהו לרשע וישבע","האכילהו לרשע וימות","הלעיטהו לכסיל וימות"],
+["לפני שבר גאון","לפני שבר גאווה","לפני נפילה גאון","אחרי שבר גאון"],
+["כבדהו וחשדהו","כבדהו ובדקהו","כבדהו וחקרהו","חשדהו וכבדהו"],
+["שלוחו של אדם כמותו","שלוחו של אדם כעבדו","שלוחו של אדם כגופו","שלוחו של אדם כדברו"],
+["צרת רבים חצי נחמה","צרת רבים חצי שמחה","צרת רבים רבע נחמה","צרת רעים חצי נחמה"],
+["אחרון אחרון חביב","אחרון אחרון אהוב","אחרון ראשון חביב","אחרון אחרון יקר"],
+["מרבה נכסים מרבה דאגה","מרבה כסף מרבה דאגה","מרבה נכסים מרבה עצב","מרבה נכסים ממעט שינה"],
+["אין חכם כבעל ניסיון","אין חכם כבעל ניסיונות","אין נבון כבעל ניסיון","אין חכם כבעל דעת"],
+["המרבה דברים מביא חטא","המרבה דברים מביא בושה","המרבה שיחה מביא חטא","המרבה דברים מרבה חטא"],
+["סוף מעשה במחשבה תחילה","סוף מעשה במחשבה ראשונה","תחילת מעשה במחשבה סופית","סוף מחשבה במעשה תחילה"],
+["אין מזל לישראל","אין מזל לאדם","אין כוכב לישראל","אין מזל בישראל"],
+["טוב פת חרבה ושלוה בה","טוב לחם יבש ושלוה בו","טוב פת חרבה ושלום בה","טוב פת קטנה ושלוה בה"],
+["הזורעים בדמעה ברינה יקצורו","הזורעים בדמעה בשמחה יקצורו","הזורעים בדמעה ברינה יאספו","הזורעים בבכי ברינה יקצורו"],
+["עם לבדד ישכון","עם לבדו ישכון","עם לבדד ישב","גוי לבדד ישכון"],
+["אל תאמר לכשאפנה אשנה שמא לא תפנה","אל תאמר לכשאפנה אלמד שמא לא תפנה","אל תאמר לכשאפנה אשנה שמא לא תספיק","אל תאמר מחר אשנה שמא לא תפנה"],
+["אין לדיין אלא מה שעיניו רואות","אין לשופט אלא מה שעיניו רואות","אין לדיין אלא מה שאוזניו שומעות","אין לדיין אלא מה שליבו רואה"],
+["גם אויל מחריש חכם יחשב","גם כסיל מחריש חכם יחשב","גם אויל שותק חכם יחשב","גם אויל מחריש נבון יחשב"],
+["מים גנובים ימתקו","מים גנובים יערבו","יין גנוב ימתק","מים גנובים ירוו"],
+["המתרפה במלאכתו אח הוא לבעל משחית","המתרפה במלאכתו אח הוא לעצל","המתעצל במלאכתו אח הוא לבעל משחית","המתרפה במלאכתו רע הוא לבעל משחית"],
+["כל הדוחק את השעה השעה דוחקתו","כל הדוחק את השעה השעה בורחת ממנו","כל הדוחק את הזמן הזמן דוחקו","כל הממהר את השעה השעה דוחקתו"],
+["אם אין קמח אין תורה","אם אין לחם אין תורה","אם אין קמח אין חכמה","אם אין קמח אין שלום"],
+["כל הבורח מן הכבוד הכבוד רודף אחריו","כל הבורח מן הכבוד הכבוד בורח ממנו","כל הרודף אחר הכבוד הכבוד רודף אחריו","כל הבורח מן השררה הכבוד רודף אחריו"],
+["אין אדם משים עצמו רשע","אין אדם עושה עצמו רשע","אין אדם משים עצמו שוטה","אין אדם משים חברו רשע"],
+["בשלושה דברים אדם ניכר: בכוסו, בכיסו ובכעסו","בשלושה דברים אדם ניכר: בכוסו, בכיסו ובביתו","בשלושה דברים אדם ניכר: בכיסו, בכעסו ובלשונו","בשלושה דברים אדם נבחן: בכוסו, בכיסו ובכעסו"],
+["יש לו מנה רוצה מאתיים","יש לו מאה רוצה מאתיים","יש לו מנה רוצה שתיים","יש לו מנה רוצה אלף"],
+["קנאת סופרים תרבה חכמה","קנאת חכמים תרבה חכמה","קנאת סופרים תרבה תורה","קנאת סופרים מרבה דעת"],
+["אין חבוש מתיר עצמו מבית האסורים","אין אסיר מתיר עצמו מבית הסוהר","אין חבוש מתיר עצמו מכבליו","אין חבוש מוציא עצמו מבית האסורים"],
+["לא הביישן למד ולא הקפדן מלמד","לא הביישן למד ולא הכעסן מלמד","לא הבטלן למד ולא הקפדן מלמד","לא הביישן מלמד ולא הקפדן למד"],
+["אם אין אני לי מי לי","אם אין אני לי מי יהיה לי","אם אין אני לעצמי מי לי","אם לא אני לי מי לי"],
+["פה שאסר הוא הפה שהתיר","פה שאסר הוא הפה שמתיר","הפה שאסר הוא הפה שפטר","יד שאסרה היא היד שהתירה"],
+["אל תסתכל בקנקן אלא במה שיש בו","אל תסתכל בכד אלא במה שיש בו","אל תסתכל בקנקן אלא במי שמזג אותו","אל תסתכל בקנקן אלא במה שיצא ממנו"]
+];
+
+
+
+// ===================== כלים =====================
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function shuffle(a,R=Math.random){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+const srcOf = t => (REAL.find(r=>r[0]===t)||[])[1] || '';
+const KINDS = {v:"גרסה נכונה", t:"אמיתי או מומצא", r:"מצאו את האמיתי", f:"מצאו את המומצא"};
+const KICON = {v:"🔀", t:"⚖️", r:"🔎", f:"🎭"};
+const fmtClock = ms => new Date(ms).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const fmtLeft = s => { s=Math.max(0,Math.ceil(s)); const m=Math.floor(s/60); return m? `${m}:${String(s%60).padStart(2,'0')}` : `${s}`; };
+const SHAPES = [
+  '<svg viewBox="0 0 30 30" class="sh"><path d="M15 3 L28 26 L2 26 Z" fill="#fff"/></svg>',
+  '<svg viewBox="0 0 30 30" class="sh"><path d="M15 2 L28 15 L15 28 L2 15 Z" fill="#fff"/></svg>',
+  '<svg viewBox="0 0 30 30" class="sh"><circle cx="15" cy="15" r="12.5" fill="#fff"/></svg>',
+  '<svg viewBox="0 0 30 30" class="sh"><rect x="3.5" y="3.5" width="23" height="23" rx="3" fill="#fff"/></svg>'
+];
+const TF = ['<svg viewBox="0 0 30 30" class="sh"><path d="M6 16 L12.5 22.5 L25 8" stroke="#fff" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+            '<svg viewBox="0 0 30 30" class="sh"><path d="M8 8 L22 22 M22 8 L8 22" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></svg>'];
+
+// ===================== יצירת שאלות =====================
+let used = new Set(store.get('pof_used', []));
+function pick(prefix, len, count, ex, R, lru){
+  const pool = [...Array(len).keys()].filter(i => !ex.has(prefix+i));
+  let fresh = lru ? pool.filter(i => !used.has(prefix+i)) : pool;
+  if (lru && fresh.length < count){ [...used].forEach(k => { if (k[0]===prefix) used.delete(k) }); fresh = pool; }
+  const out = shuffle(fresh, R).slice(0, count);
+  out.forEach(i => { if (lru) used.add(prefix+i); ex.add(prefix+i) });
+  return out;
+}
+function genRound(n, rng){
+  const R = rng || Math.random, lru = !rng, ex = new Set();
+  const pk = (p,len,c) => pick(p,len,c,ex,R,lru);
+  const nv = Math.round(n*.35), nt = Math.round(n*.25), nr = Math.round(n*.2), nf = n-nv-nt-nr;
+  const qs = [];
+  pk('V', VERS.length, nv).forEach(i => {
+    const ri = REAL.findIndex(r => r[0]===VERS[i][0]); if (ri>=0) ex.add('R'+ri);
+    qs.push({y:'v', a:[i], o:shuffle([0,1,2,3],R)});
+  });
+  for (let k=0;k<nt;k++){
+    if (R()<.5) qs.push({y:'t', a:[1, pk('R',REAL.length,1)[0]]});
+    else qs.push({y:'t', a:[0, pk('F',FAKE.length,1)[0]]});
+  }
+  for (let k=0;k<nr;k++) qs.push({y:'r', a:[pk('R',REAL.length,1)[0], ...pk('F',FAKE.length,3)], o:shuffle([0,1,2,3],R)});
+  for (let k=0;k<nf;k++) qs.push({y:'f', a:[pk('F',FAKE.length,1)[0], ...pk('R',REAL.length,3)], o:shuffle([0,1,2,3],R)});
+  if (lru) store.set('pof_used', [...used]);
+  return shuffle(qs, R);
+}
+function buildQ(s){
+  if (s.y==='v'){
+    const set = VERS[s.a[0]], src = srcOf(set[0]);
+    return {y:'v', prompt:'איזו גרסה היא הפתגם המקורי?', opts:s.o.map(k=>set[k]), correct:s.o.indexOf(0),
+      marks:s.o.map(k=>k===0?('המקור'+(src?' · '+src:'')):'משובש'), src};
+  }
+  if (s.y==='t'){
+    const real = s.a[0]===1, text = real ? REAL[s.a[1]][0] : FAKE[s.a[1]];
+    return {y:'t', prompt:'הפתגם הזה אמיתי או מומצא?', quote:text, opts:['אמיתי','מומצא'], correct:real?0:1,
+      src: real ? REAL[s.a[1]][1] : 'מומצא, לא מופיע באף מקור'};
+  }
+  const c = s.y==='r'
+    ? [[REAL[s.a[0]][0], 'אמיתי · '+REAL[s.a[0]][1]], ...s.a.slice(1).map(i=>[FAKE[i],'מומצא'])]
+    : [[FAKE[s.a[0]], 'זה המומצא'], ...s.a.slice(1).map(i=>[REAL[i][0],'אמיתי · '+REAL[i][1]])];
+  return {y:s.y, prompt: s.y==='r' ? 'רק אחד מאלה פתגם אמיתי. איזה?' : 'שלושה אמיתיים, אחד מומצא. מי המתחזה?',
+    opts:s.o.map(k=>c[k][0]), correct:s.o.indexOf(0), marks:s.o.map(k=>c[k][1]), src: s.y==='r'?REAL[s.a[0]][1]:''};
+}
+const pointsFor = (ms, t) => Math.round(1000*(1 - Math.min(1, Math.max(0, ms)/(t*1000))/2));
+
+// ===================== רכיבי תצוגה =====================
+let T = null;
+function setTimer(dur, onEnd, start){ T = dur ? {start:start||Date.now(), dur, fired:false, onEnd} : null; }
+function timeLeft(){ return T ? Math.max(0, T.dur-(Date.now()-T.start)/1000) : Infinity; }
+const CIRC = 2*Math.PI*24;
+function ringHTML(){
+  return `<div class="ring" id="ring"><svg width="58" height="58"><circle class="bg" cx="29" cy="29" r="24"/><circle class="fg" id="ringfg" cx="29" cy="29" r="24" stroke-dasharray="${CIRC}" stroke-dashoffset="0"/></svg><div class="n" id="tnum"></div></div>`;
+}
+function updateRing(){
+  if (!T) return; const left = timeLeft(), fg = $('#ringfg'), n = $('#tnum'), ring = $('#ring');
+  if (fg) fg.setAttribute('stroke-dashoffset', CIRC*(1-left/T.dur));
+  if (n) n.textContent = Math.ceil(left);
+  if (ring) ring.classList.toggle('low', left<5);
+}
+function headHTML(q, i, n, timer){
+  return `<div class="qhead">${timer?ringHTML():''}<div class="meta"><div class="num">שאלה ${i+1} מתוך ${n}</div><span class="kind">${KICON[q.y]} ${KINDS[q.y]}</span><div class="prog"><i style="width:${(i/n)*100}%"></i></div></div></div>`;
+}
+function qcardHTML(q){
+  return `<div class="qcard"><div class="pr">${esc(q.prompt)}</div>${q.quote?`<div class="qt">״${esc(q.quote)}״</div>`:''}</div>`;
+}
+// opts: chosen, reveal, counts, interactive
+function tilesHTML(q, {chosen=null, reveal=false, counts=null, interactive=true}={}){
+  const two = q.opts.length===2;
+  return `<div class="tiles ${two?'two':''}">` + q.opts.map((o,k)=>{
+    let cls = `tile t${k}`;
+    if (reveal){ cls += k===q.correct ? ' right' : ' off'; }
+    else if (chosen!=null){ cls += k===chosen ? ' pick' : ' off'; }
+    const sh = two ? TF[k] : SHAPES[k];
+    const mk = reveal && q.marks ? `<span class="mk">${esc(q.marks[k])}</span>` : '';
+    const ct = counts ? `<span class="ct">${counts[k]||0}</span>` : '';
+    const dis = !interactive || reveal || chosen!=null ? 'disabled' : '';
+    return `<button class="${cls}" data-act="ans" data-k="${k}" ${dis}>${sh}<span class="tx">${esc(o)}${mk}</span>${ct}</button>`;
+  }).join('') + `</div>`;
+}
+function fbHTML({state, pts=0, streak=0, place='', q, btn=''}){
+  const ic = state==='ok'?'✓':state==='no'?'✗':'⏰';
+  const title = state==='ok'?'נכון!':state==='no'?'טעות':'נגמר הזמן';
+  const ans = q ? `<div class="ans">התשובה: ${esc(q.opts[q.correct])}${q.src?`<small>${esc(q.src)}</small>`:''}</div>` : '';
+  return `<div class="fb ${state} fade"><div class="icon">${ic}</div><div class="big">${title}</div>
+    ${state==='ok'&&pts?`<div class="pts">+${pts}</div>`:''}
+    ${streak>=2?`<div class="streak">🔥 ${streak} ברצף</div>`:''}
+    ${ans}${place?`<div class="place">${place}</div>`:''}${btn?`<div class="btns">${btn}</div>`:''}</div>`;
+}
+function boardHTML(rows, {meKey=null, limit=99}={}){
+  const s = rows.slice().sort((a,b)=>b.sc-a.sc); let last=null, pos=0;
+  return s.slice(0,limit).map((r,i)=>{ if (r.sc!==last){pos=i+1; last=r.sc}
+    return `<div class="brow r${pos} ${meKey!=null&&r.key===meKey?'me':''}" style="animation-delay:${i*.06}s"><span class="p">${pos}</span><span class="nm">${esc(r.nm)}</span><span class="sc">${r.sc}</span></div>`}).join('');
+}
+function podiumHTML(rows){
+  const s = rows.slice().sort((a,b)=>b.sc-a.sc);
+  const slot = (r,p) => r ? `<div class="pod p${p}"><div class="nm">${esc(r.nm)}</div><div class="sc">${r.sc}</div><div class="blk">${p}</div></div>` : `<div class="pod p${p}"></div>`;
+  return `<div class="podium">${slot(s[1],2)}${slot(s[0],1)}${slot(s[2],3)}</div>`;
+}
+function rankOf(rows, key){
+  const s = rows.slice().sort((a,b)=>b.sc-a.sc); const idx = s.findIndex(r=>r.key===key); if (idx<0) return '';
+  const me = s[idx], pos = s.findIndex(r=>r.sc===me.sc)+1;
+  if (pos===1) return s.length>1 ? `אתה במקום הראשון! 👑` : '';
+  const ahead = s[pos-2];
+  return `אתה במקום ${pos}${ahead?`, ${ahead.sc-me.sc} נקודות אחרי ${esc(ahead.nm)}`:''}`;
+}
+function confetti(){
+  const cv=$('#confetti'), ctx=cv.getContext('2d'); cv.width=innerWidth; cv.height=innerHeight;
+  const cols=['#13a89e','#ec5444','#7c4dff','#f2a516','#ffffff'];
+  const ps=[...Array(160)].map(()=>({x:Math.random()*cv.width,y:-20-Math.random()*cv.height*.6,vx:(Math.random()-.5)*3,vy:2+Math.random()*4,r:Math.random()*6.28,vr:(Math.random()-.5)*.3,w:6+Math.random()*7,h:8+Math.random()*9,c:cols[Math.floor(Math.random()*cols.length)]}));
+  const t0=performance.now();
+  (function f(t){ ctx.clearRect(0,0,cv.width,cv.height);
+    ps.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.04;p.r+=p.vr;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();});
+    if (t-t0<5000) requestAnimationFrame(f); else ctx.clearRect(0,0,cv.width,cv.height); })(t0);
+}
+const seg = (id, vals, cur, fmt) => `<div class="seg">${vals.map(v=>`<button data-act="seg" data-id="${id}" data-v="${v}" class="${v===cur?'on':''}">${fmt(v)}</button>`).join('')}</div>`;
+
+// ===================== ניווט =====================
+let view = 'home', lastHTML = '';
+function paint(h){ if (h!==lastHTML){ lastHTML=h; app.innerHTML=h; updateRing(); } }
+function go(v){ view=v; T=null; lastHTML=''; render(); window.scrollTo(0,0); }
+function render(){ paint({home:homeHTML, join:joinHTML, live:liveHTML}[view]()); }
+setInterval(()=>{
+  if (T){ updateRing(); if (timeLeft()<=0 && !T.fired){ T.fired=true; T.onEnd && T.onEnd(); } }
+  if (view==='live') liveLoop();
+}, 150);
+
+function homeHTML(){
+  return `<div class="fade"><div class="logo"><div class="tiles4"><i style="background:var(--c0)"></i><i style="background:var(--c1)"></i><i style="background:var(--c2)"></i><i style="background:var(--c3)"></i></div>
+  <h1>פתגם או <em>פייק?</em></h1><p>פתגמים אמיתיים, מומצאים ומשובשים.<br>מי שצודק הכי מהר, מנצח.</p></div>
+  <button class="card mode" data-act="gojoin"><span class="ic" style="background:var(--c0)">🙋</span><span><b>הצטרפות למשחק</b><small>יש לי קוד חדר מהמארח</small></span></button>
+  <button class="card mode" data-act="gohost"><span class="ic" style="background:var(--c1)">🎙️</span><span><b>פתיחת חדר</b><small>אני המארח: פותח חדר, רואה מי נכנס ולוחץ "התחל"</small></span></button>
+  <div class="types">
+   <div class="type"><b>🔀 גרסה נכונה</b>פתגם אמיתי ושלוש גרסאות משובשות</div>
+   <div class="type"><b>⚖️ אמיתי או מומצא</b>פתגם אחד, האם הוא קיים?</div>
+   <div class="type"><b>🔎 מצאו את האמיתי</b>אמיתי אחד בין שלושה מומצאים</div>
+   <div class="type"><b>🎭 מצאו את המומצא</b>מתחזה אחד בין שלושה אמיתיים</div>
+  </div><p class="center dim-txt" style="font-size:13px;margin-top:14px">${REAL.length} פתגמים אמיתיים · ${FAKE.length} מומצאים · ${VERS.length} סטים של גרסאות · בלי הרשמה</p>
+  ${window.Peer?'':'<div class="card center" style="color:var(--bad);font-weight:700">רכיב החיבור לא נטען. בדקו את האינטרנט ורעננו.</div>'}</div>`;
+}
+
+// ===================== רשת (WebRTC דרך PeerJS, בלי שרת משלנו) =====================
+const PFX = 'ptgm-fk-';
+const PRE = 3000;
+const LV = {peer:null, host:false, pin:'', nm:'', plays:false, g:null,
+  players:new Map(), // מארח: key -> {nm, ans:{}, conn, on}
+  pl:[], myKey:null, conn:null, myAns:{}, recv:{}, qc:{}, fx:{}, err:'', status:''};
+let joinErr='', joinBusy=false, lvN=10, lvT=20;
+const prefillPin = (location.hash.match(/^#(\d{4})$/)||[])[1] || '';
+
+function joinHTML(){
+  return `<div class="fade"><button class="back" data-act="home">→ חזרה</button>
+  <div class="card"><h2>הצטרפות למשחק</h2>
+   <label>קוד החדר</label><input id="jpin" inputmode="numeric" maxlength="4" value="${esc(prefillPin)}" placeholder="• • • •" style="text-align:center;letter-spacing:12px;font:900 34px Rubik;direction:ltr">
+   <label>השם שלך</label><input id="jnm" value="${esc(store.get('pof_me',''))}" maxlength="16" placeholder="השם שיופיע על המסך">
+   <div class="gap2"></div><button class="btn hot" data-act="join" ${joinBusy?'disabled':''}>יאללה, נכנסים</button>
+   <div class="err">${esc(joinErr)}</div>${joinBusy?'<div class="wait"><i></i><i></i><i></i></div>':''}</div></div>`;
+}
+function resetLV(){ try{ LV.peer && LV.peer.destroy(); }catch(e){} Object.assign(LV,{peer:null, host:false, pin:'', plays:false, g:null, players:new Map(), pl:[], myKey:null, conn:null, myAns:{}, recv:{}, qc:{}, fx:{}, err:'', status:''}); T=null; }
+
+// ---- מארח ----
+function openHost(tries=0){
+  resetLV(); LV.host=true; LV.nm=store.get('pof_me','')||'המארח'; LV.status='פותח חדר…'; go('live');
+  if (!window.Peer){ LV.err='רכיב החיבור לא נטען. בדקו אינטרנט ורעננו.'; render(); return; }
+  const pin = String(Math.floor(1000+Math.random()*9000));
+  const peer = new Peer(PFX+pin, {debug:0});
+  LV.peer = peer;
+  peer.on('open', ()=>{ LV.pin=pin; LV.status=''; LV.g={id:rid(), st:'lobby', n:lvN, t:lvT, qs:[], i:0, at:Date.now()}; history.replaceState(null,'',location.pathname+location.search); render(); });
+  peer.on('connection', conn=>{
+    conn.on('data', d=>hostOnData(conn, d));
+    conn.on('close', ()=>{ for (const [k,p] of LV.players) if (p.conn===conn){ p.on=false; p.conn=null; } broadcast(); liveLoop(true); });
+    conn.on('error', ()=>{});
+  });
+  peer.on('disconnected', ()=>{ try{ peer.reconnect(); }catch(e){} });
+  peer.on('error', e=>{
+    if (e.type==='unavailable-id' && tries<5){ peer.destroy(); openHost(tries+1); return; }
+    if (!LV.pin){ LV.err='לא הצלחתי לפתוח חדר ('+e.type+'). בדקו אינטרנט ונסו שוב.'; render(); }
+  });
+}
+const rid = () => Math.random().toString(36).slice(2,8);
+function hostOnData(conn, d){
+  if (!d || typeof d!=='object') return;
+  if (d.t==='j'){
+    let nm = String(d.nm||'').trim().slice(0,16) || 'שחקן';
+    let key = null;
+    for (const [k,p] of LV.players) if (p.nm===nm){ if (p.on && p.conn!==conn){ nm = nm+' '+(LV.players.size+1); } else key = k; break; }
+    if (!key){ key = 'k'+rid(); LV.players.set(key, {nm, ans:{}, conn, on:true}); }
+    else { const p=LV.players.get(key); p.conn=conn; p.on=true; }
+    conn.key = key;
+    broadcast(); liveLoop(true);
+  } else if (d.t==='a'){
+    const p = LV.players.get(conn.key), g = LV.g;
+    if (!p || !g || g.st!=='q' || d.gid!==g.id || d.i!==g.i || p.ans['a'+g.i]) return;
+    const k = +d.k; if (!(k>=0 && k<4)) return;
+    p.ans['a'+g.i] = [k, Math.max(0, Math.min(g.t*1000, +d.ms||0))];
+    broadcast(); liveLoop(true);
+  }
+}
+function plist(){
+  if (LV.host){
+    const arr = [...LV.players].map(([key,p])=>({key, nm:p.nm, ans:p.ans, on:p.on}));
+    if (LV.plays) arr.unshift({key:'host', nm:LV.nm, ans:LV.myAns, on:true});
+    return arr;
+  }
+  return LV.pl;
+}
+function broadcast(){
+  if (!LV.host) return;
+  const pl = plist();
+  for (const [key,p] of LV.players) if (p.on && p.conn && p.conn.open){ try{ p.conn.send({t:'s', g:LV.g, pl, you:key}); }catch(e){} }
+}
+function lvSet(patch){ LV.g = {...LV.g, ...patch, at:Date.now()}; broadcast(); liveLoop(true); }
+function lvStart(){
+  for (const p of LV.players.values()) p.ans = {};
+  LV.myAns = {};
+  lvSet({id:rid(), st:'pre', n:lvN, t:lvT, qs:genRound(lvN), i:0});
+}
+function lvNext(){
+  const g = LV.g;
+  if (g.st==='rev') lvSet({st:'board'});
+  else if (g.st==='board'){ if (g.i+1<g.qs.length) lvSet({st:'pre', i:g.i+1}); else lvSet({st:'end'}); }
+}
+
+// ---- שחקן ----
+function joinRoom(){
+  const pin=($('#jpin').value||'').replace(/\D/g,''), nm=($('#jnm').value||'').trim();
+  joinErr = pin.length!==4 ? 'קוד החדר הוא 4 ספרות' : !nm ? 'צריך שם' : !window.Peer ? 'רכיב החיבור לא נטען, רעננו את העמוד' : '';
+  if (joinErr){ lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm; return; }
+  store.set('pof_me', nm);
+  resetLV(); LV.nm=nm; LV.pin=pin; joinBusy=true; lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm;
+  const fail = msg => { if (!joinBusy) return; joinBusy=false; joinErr=msg; try{LV.peer&&LV.peer.destroy()}catch(e){} lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm; };
+  const to = setTimeout(()=>fail('לא הצלחתי להתחבר לחדר. בדקו את הקוד ושמסך המארח פתוח.'), 15000);
+  const peer = new Peer({debug:0}); LV.peer = peer;
+  peer.on('open', ()=>{
+    const conn = peer.connect(PFX+pin, {reliable:true}); LV.conn = conn;
+    conn.on('open', ()=>{ clearTimeout(to); joinBusy=false; conn.send({t:'j', nm}); LV.status='נכנס…'; go('live'); });
+    conn.on('data', d=>{ if (d && d.t==='s'){ LV.g=d.g; LV.pl=d.pl||[]; LV.myKey=d.you; LV.status=''; if (LV.g && LV.myAns.gid!==LV.g.id) LV.myAns={gid:LV.g.id}; liveLoop(true); } });
+    conn.on('close', ()=>{ if (view==='live'){ LV.err='החיבור למארח נותק'; render(); } });
+  });
+  peer.on('error', e=>{ clearTimeout(to); fail(e.type==='peer-unavailable' ? 'לא נמצא חדר עם הקוד הזה. בדקו שהמארח עדיין בעמוד.' : 'בעיית חיבור ('+e.type+'). נסו שוב.'); if (view==='live' && !joinBusy){ LV.err='החיבור נותק ('+e.type+')'; render(); } });
+}
+function lvAnswer(k){
+  const g = LV.g; if (!g || g.st!=='q') return;
+  const key = 'a'+g.i, ms = Date.now() - (LV.recv[g.id+':'+g.i] || Date.now());
+  if (ms > g.t*1000) return;
+  if (LV.host){ if (!LV.plays || LV.myAns[key]) return; LV.myAns[key]=[k,ms]; broadcast(); liveLoop(true); return; }
+  if (LV.myAns[key]) return;
+  LV.myAns[key] = [k, ms];
+  try{ LV.conn.send({t:'a', gid:g.id, i:g.i, k, ms}); }catch(e){}
+  render();
+}
+
+// ---- לוגיקה משותפת ----
+function lvQ(g,i){ const k=g.id+':'+i; return LV.qc[k] || (LV.qc[k]=buildQ(g.qs[i])); }
+const lvAns = (p,i) => { const v = p.ans && p.ans['a'+i]; return Array.isArray(v) ? v : null; };
+function lvScores(g){
+  const upto = g.st==='end' ? g.qs.length-1 : (g.st==='lobby') ? -1 : (g.st==='pre'||g.st==='q') ? g.i-1 : g.i;
+  return plist().map(p=>{ let sc=0, streak=0;
+    for (let i=0;i<=upto;i++){ const a=lvAns(p,i), q=lvQ(g,i); if (a && a[0]===q.correct){ sc+=pointsFor(a[1],g.t); streak++; } else streak=0; }
+    return {nm:p.nm, sc, key:p.key, streak}; });
+}
+const meKey = () => LV.host ? 'host' : LV.myKey;
+function liveLoop(force){
+  const g = LV.g;
+  if (LV.host && g){
+    const now = Date.now();
+    if (g.st==='pre' && now-g.at >= PRE){ lvSet({st:'q'}); return; }
+    if (g.st==='q'){
+      const ps = plist().filter(p=>p.on), all = ps.length>0 && ps.every(p=>lvAns(p,g.i));
+      if (all || now-g.at >= g.t*1000+800){ lvSet({st:'rev'}); return; }
+    }
+  }
+  if (g && g.st==='q'){
+    const key = g.id+':'+g.i;
+    if (!LV.recv[key]) LV.recv[key] = Date.now();
+    if (!T || T.start!==LV.recv[key]) setTimer(g.t, ()=>liveLoop(true), LV.recv[key]);
+  } else if (T) T = null;
+  if (g && g.st==='end' && !LV.fx[g.id]){ LV.fx[g.id]=1; setTimeout(confetti, 1600); }
+  render();
+}
+
+// ---- מסכים ----
+function liveHTML(){
+  const top = `<div class="row" style="margin-bottom:6px"><button class="back" style="flex:0" data-act="leave">→ יציאה</button><span style="flex:1"></span>${LV.pin&&LV.g?`<span class="count" style="flex:0 0 auto">חדר ${esc(LV.pin)}</span>`:''}</div>`;
+  if (LV.err) return `${top}<div class="card center"><h3>${esc(LV.err)}</h3><div class="gap"></div><button class="btn dark" data-act="leave">חזרה</button></div>`;
+  const g = LV.g;
+  if (!g) return `${top}<div class="pre"><div class="wait"><i></i><i></i><i></i></div><h2>${esc(LV.status||'מתחבר…')}</h2></div>`;
+  return LV.host ? hostHTML(g, top) : playerHTML(g, top);
+}
+function hostHTML(g, top){
+  const ps = plist(), on = ps.filter(p=>p.on), n = g.qs.length;
+  if (g.st==='lobby' || g.st==='end'){
+    const link = location.origin+location.pathname+'#'+LV.pin;
+    const settings = `<label>מספר שאלות</label>${seg('lvn',[5,8,10,15,20],lvN,v=>v)}<label>שניות לשאלה</label>${seg('lvt',[10,15,20,30],lvT,v=>v)}
+      <div class="toggle ${LV.plays?'on':''}" data-act="plays"><span class="sw"></span>גם אני משחק מהמכשיר הזה</div>`;
+    if (g.st==='end'){
+      const rows = lvScores(g);
+      return `${top}<div class="fade"><h2 class="center" style="font:900 34px Rubik;margin:10px 0 0">🏆 הפודיום</h2>${podiumHTML(rows)}
+        <div class="card">${boardHTML(rows)}</div><div class="card"><h3>עוד סבב?</h3>${settings}<div class="gap2"></div><button class="btn go" data-act="start" ${on.length?'':'disabled'}>סבב חדש, שאלות חדשות ▶</button></div></div>`;
+    }
+    return `${top}<div class="fade"><div class="pinbox"><div class="l">קוד החדר</div><div class="pin">${esc(LV.pin)}</div>
+       <div class="gap"></div><button class="btn dark" data-act="copy" data-text="${esc('בואו לשחק פתגם או פייק! 🎯 '+link)}">העתקת קישור הזמנה</button><div class="note" id="copied"></div></div>
+      <div class="center"><span class="count">👥 ${on.length} ${on.length===1?'שחקן':'שחקנים'}</span></div>
+      <div class="players">${ps.length?ps.map(p=>`<span class="pl ${p.key==='host'?'me':''}" style="${p.on?'':'opacity:.4'}">${esc(p.nm)}</span>`).join(''):'<div class="dim-txt" style="padding:14px">מחכים לשחקנים…</div>'}</div>
+      <div class="card">${settings}<div class="gap2"></div><button class="btn go" data-act="start" ${on.length?'':'disabled'}>התחל ▶</button></div></div>`;
+  }
+  const q = lvQ(g, g.i);
+  if (g.st==='pre') return `${top}<div class="pre"><div class="qn">שאלה ${g.i+1} מתוך ${n}</div><div class="qk">${KICON[q.y]} ${KINDS[q.y]}</div>${qcardHTML(q)}<div class="bar"><i></i></div></div>`;
+  if (g.st==='q'){
+    const mine = LV.plays && LV.myAns['a'+g.i] ? LV.myAns['a'+g.i][0] : null;
+    const done = on.filter(p=>lvAns(p,g.i)).length;
+    return `${top}<div class="fade">${headHTML(q,g.i,n,true)}${qcardHTML(q)}${tilesHTML(q,{chosen:mine, interactive:LV.plays})}
+      <div class="answered"><span class="count">✋ ענו ${done}/${on.length}</span></div><div class="gap"></div><div class="center"><button class="btn line sm" data-act="skip" style="color:#fff">סיום זמן</button></div></div>`;
+  }
+  if (g.st==='rev'){
+    const counts=[0,0,0,0]; ps.forEach(p=>{ const a=lvAns(p,g.i); if (a) counts[a[0]]++; });
+    const mine = LV.plays && LV.myAns['a'+g.i] ? LV.myAns['a'+g.i][0] : null;
+    return `${top}<div class="fade">${headHTML(q,g.i,n,false)}${qcardHTML(q)}${tilesHTML(q,{reveal:true, counts, interactive:false})}
+      <p class="center dim-txt" style="font-weight:600">${counts[q.correct]} מתוך ${on.length} צדקו${LV.plays?` · ${mine===q.correct?'גם אתה ✓':'אתה לא ✗'}`:''}</p>
+      <button class="btn" data-act="next">לטבלה ‹</button></div>`;
+  }
+  if (g.st==='board'){
+    return `${top}<div class="fade"><h2 class="center" style="font:900 30px Rubik;margin:14px 0">טבלת המובילים</h2><div class="card">${boardHTML(lvScores(g),{limit:5})}</div>
+      <button class="btn go" data-act="next">${g.i+1<n?'שאלה הבאה ‹':'לפודיום 🏆'}</button></div>`;
+  }
+  return top;
+}
+function playerHTML(g, top){
+  const ps = plist(), n = g.qs.length, mk = meKey();
+  if (g.st==='lobby'){
+    return `${top}<div class="pre fade"><div class="dim-txt" style="font-weight:600">אתה בפנים!</div><div class="bigname">${esc((ps.find(p=>p.key===mk)||{}).nm||LV.nm)}</div>
+      <p class="dim-txt">רואה את השם שלך אצל המארח?</p><div class="wait"><i></i><i></i><i></i></div><span class="count">👥 ${ps.filter(p=>p.on).length} בחדר · מחכים שהמארח יתחיל</span></div>`;
+  }
+  if (g.st==='end'){
+    const rows = lvScores(g), s = rows.slice().sort((a,b)=>b.sc-a.sc), my = rows.find(r=>r.key===mk);
+    const pos = my ? s.findIndex(r=>r.sc===my.sc)+1 : 0;
+    return `${top}<div class="fade"><h2 class="center" style="font:900 30px Rubik;margin:10px 0 0">${pos===1?'ניצחת! 👑':pos?`מקום ${pos}`:'הסבב נגמר'}</h2>${podiumHTML(rows)}
+      <div class="card">${boardHTML(rows,{meKey:mk})}</div><p class="center dim-txt">הישארו בחדר, המארח יכול לפתוח סבב נוסף</p></div>`;
+  }
+  const q = lvQ(g, g.i);
+  if (g.st==='pre') return `${top}<div class="pre"><div class="qn">שאלה ${g.i+1} מתוך ${n}</div><div class="qk">${KICON[q.y]} ${KINDS[q.y]}</div>${qcardHTML(q)}<div class="bar"><i></i></div></div>`;
+  const mineA = LV.myAns['a'+g.i];
+  if (g.st==='q'){
+    if (mineA) return `${top}<div class="pre fade"><div class="tiles" style="width:100%"><div class="tile t${mineA[0]}">${(q.opts.length===2?TF:SHAPES)[mineA[0]]}<span class="tx">${esc(q.opts[mineA[0]])}</span></div></div>
+      <h2 style="margin-top:22px">התשובה נקלטה</h2><p class="dim-txt">מחכים לשאר השחקנים…</p><div class="wait"><i></i><i></i><i></i></div></div>`;
+    if (timeLeft()<=0) return `${top}<div class="pre"><h2>⏰ הזמן נגמר</h2><div class="wait"><i></i><i></i><i></i></div></div>`;
+    return `${top}<div class="fade">${headHTML(q,g.i,n,true)}${qcardHTML(q)}${tilesHTML(q)}</div>`;
+  }
+  const rows = lvScores(g), my = rows.find(r=>r.key===mk);
+  const state = !mineA ? 'none' : mineA[0]===q.correct ? 'ok' : 'no';
+  return fbHTML({state, pts: state==='ok'?pointsFor(mineA[1],g.t):0, streak: my?my.streak:0, place: my ? rankOf(rows, my.key)+` · <span dir="ltr">${my.sc}</span> נק׳` : '', q});
+}
+
+// ===================== אירועים =====================
+app.addEventListener('click', e=>{
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  switch(b.dataset.act){
+    case 'home': go('home'); break;
+    case 'gojoin': joinErr=''; go('join'); break;
+    case 'gohost': openHost(); break;
+    case 'join': joinRoom(); break;
+    case 'seg': { const v=+b.dataset.v; if (b.dataset.id==='lvn') lvN=v; else lvT=v; lastHTML=''; render(); break; }
+    case 'plays': LV.plays=!LV.plays; broadcast(); lastHTML=''; render(); break;
+    case 'start': lvStart(); window.scrollTo(0,0); break;
+    case 'next': lvNext(); window.scrollTo(0,0); break;
+    case 'skip': lvSet({st:'rev'}); break;
+    case 'ans': lvAnswer(+b.dataset.k); break;
+    case 'leave': resetLV(); go('home'); break;
+    case 'copy': {
+      const t=b.dataset.text, out=$('#copied');
+      try{ navigator.clipboard.writeText(t).then(()=>{ if(out) out.textContent='הועתק ✓ שלחו בוואטסאפ'; }, ()=>{ if(out) out.textContent=t; }); }catch(err){ if(out) out.textContent=t; }
+      break;
+    }
+  }
+});
+window.addEventListener('beforeunload', e=>{ if (LV.host && LV.g && LV.g.st!=='lobby' && LV.g.st!=='end'){ e.preventDefault(); e.returnValue=''; } });
+if (prefillPin) view='join';
+render();
+</script>
+</body>
+</html>
