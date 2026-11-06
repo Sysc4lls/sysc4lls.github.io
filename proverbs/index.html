@@ -609,36 +609,63 @@ function joinHTML(){
    <div class="gap2"></div><button class="btn hot" data-act="join" ${joinBusy?'disabled':''}>יאללה, נכנסים</button>
    <div class="err">${esc(joinErr)}</div>${joinBusy?'<div class="wait"><i></i><i></i><i></i></div>':''}</div></div>`;
 }
-function resetLV(){ try{ LV.peer && LV.peer.destroy(); }catch(e){} Object.assign(LV,{peer:null, host:false, pin:'', plays:false, g:null, players:new Map(), pl:[], myKey:null, conn:null, myAns:{}, recv:{}, qc:{}, fx:{}, err:'', status:''}); T=null; }
+function resetLV(){ clearTimeout(LV.rt); try{ LV.peer && LV.peer.destroy(); }catch(e){} Object.assign(LV,{peer:null, host:false, pin:'', plays:false, g:null, players:new Map(), pl:[], myKey:null, conn:null, myAns:{}, recv:{}, qc:{}, fx:{}, err:'', status:'', rt:null, reconn:0, lastPing:0, left:false}); T=null; }
+const GRACE = 120000;     // כמה זמן שחקן מנותק נשאר בחדר לפני שהוא מוסר
+const HB = 3000, HB_DEAD = 10000;
+const SESS = 'pof_sess';
+
+// ---- שמירת מסך דולק ----
+let wake = null;
+async function keepAwake(){ try{ if (navigator.wakeLock && document.visibilityState==='visible' && !wake){ wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', ()=>{ wake=null; }); } }catch(e){} }
 
 // ---- מארח ----
 function openHost(tries=0){
   resetLV(); LV.host=true; LV.nm=store.get('pof_me','')||'המארח'; LV.status='פותח חדר…'; go('live');
   if (!window.Peer){ LV.err='רכיב החיבור לא נטען. בדקו אינטרנט ורעננו.'; render(); return; }
   const pin = String(Math.floor(1000+Math.random()*9000));
-  const peer = new Peer(PFX+pin, {debug:0});
-  LV.peer = peer;
-  peer.on('open', ()=>{ LV.pin=pin; LV.status=''; LV.g={id:rid(), st:'lobby', n:lvN, t:lvT, qs:[], i:0, at:Date.now()}; history.replaceState(null,'',location.pathname+location.search); render(); });
+  hostPeer(pin, ()=>{ LV.pin=pin; LV.status=''; LV.g={id:rid(), st:'lobby', n:lvN, t:lvT, qs:[], i:0, at:Date.now()}; history.replaceState(null,'',location.pathname+location.search); keepAwake(); render(); },
+    e=>{ if (e.type==='unavailable-id' && tries<5){ openHost(tries+1); return true; } });
+}
+function hostPeer(pin, onOpen, onErr){
+  try{ LV.peer && LV.peer.destroy(); }catch(e){}
+  const peer = new Peer(PFX+pin, {debug:0}); LV.peer = peer;
+  peer.on('open', onOpen || (()=>{}));
   peer.on('connection', conn=>{
     conn.on('data', d=>hostOnData(conn, d));
-    conn.on('close', ()=>{ for (const [k,p] of LV.players) if (p.conn===conn){ p.on=false; p.conn=null; } broadcast(); liveLoop(true); });
-    conn.on('error', ()=>{});
+    conn.on('close', ()=>markOffline(conn));
+    conn.on('error', ()=>markOffline(conn));
   });
-  peer.on('disconnected', ()=>{ try{ peer.reconnect(); }catch(e){} });
+  peer.on('disconnected', ()=>{ setTimeout(()=>{ try{ if (peer.disconnected && !peer.destroyed) peer.reconnect(); }catch(e){} }, 1000); });
   peer.on('error', e=>{
-    if (e.type==='unavailable-id' && tries<5){ peer.destroy(); openHost(tries+1); return; }
+    if (onErr && onErr(e)) return;
     if (!LV.pin){ LV.err='לא הצלחתי לפתוח חדר ('+e.type+'). בדקו אינטרנט ונסו שוב.'; render(); }
   });
+}
+function hostEnsure(){ // המארח חזר לעמוד: לוודא שהחדר עדיין פתוח
+  if (!LV.host || !LV.pin || !LV.peer) return;
+  const now = Date.now(); for (const p of LV.players.values()) if (p.on) p.seen = now; // לא להעיף שחקנים בגלל שהמארח היה ברקע
+  if (LV.peer.destroyed) hostPeer(LV.pin, null, e=>{ if (e.type==='unavailable-id'){ setTimeout(hostEnsure, 3000); return true; } });
+  else if (LV.peer.disconnected) { try{ LV.peer.reconnect(); }catch(e){} }
+}
+function markOffline(conn){
+  for (const p of LV.players.values()) if (p.conn===conn){ p.on=false; p.conn=null; p.offAt=Date.now(); }
+  broadcast(); liveLoop(true);
 }
 const rid = () => Math.random().toString(36).slice(2,8);
 function hostOnData(conn, d){
   if (!d || typeof d!=='object') return;
+  const now = Date.now();
+  if (conn.key && LV.players.has(conn.key)) LV.players.get(conn.key).seen = now;
   if (d.t==='j'){
     let nm = String(d.nm||'').trim().slice(0,16) || 'שחקן';
-    let key = null;
-    for (const [k,p] of LV.players) if (p.nm===nm){ if (p.on && p.conn!==conn){ nm = nm+' '+(LV.players.size+1); } else key = k; break; }
-    if (!key){ key = 'k'+rid(); LV.players.set(key, {nm, ans:{}, conn, on:true}); }
-    else { const p=LV.players.get(key); p.conn=conn; p.on=true; }
+    let key = typeof d.key==='string' && LV.players.has(d.key) ? d.key : null;
+    if (!key){
+      for (const [k,p] of LV.players) if (p.nm===nm){ if (!p.on) key = k; else nm = nm+' '+(LV.players.size+1); break; }
+    }
+    if (!key){ key = 'k'+rid(); LV.players.set(key, {nm, ans:{}}); }
+    const p = LV.players.get(key);
+    if (p.conn && p.conn!==conn){ try{ p.conn.close(); }catch(e){} }
+    Object.assign(p, {conn, on:true, seen:now}); delete p.offAt;
     conn.key = key;
     broadcast(); liveLoop(true);
   } else if (d.t==='a'){
@@ -647,11 +674,23 @@ function hostOnData(conn, d){
     const k = +d.k; if (!(k>=0 && k<4)) return;
     p.ans['a'+g.i] = [k, Math.max(0, Math.min(g.t*1000, +d.ms||0))];
     broadcast(); liveLoop(true);
+  } else if (d.t==='bye'){
+    const p = LV.players.get(conn.key); if (p){ LV.players.delete(conn.key); broadcast(); liveLoop(true); }
   }
+}
+function hostHousekeeping(){
+  if (!LV.host) return;
+  const now = Date.now(); let changed = false;
+  for (const [k,p] of LV.players){
+    if (p.on && now-(p.seen||0) > HB_DEAD){ p.on=false; p.offAt=now; try{ p.conn&&p.conn.close(); }catch(e){} p.conn=null; changed=true; }
+    if (!p.on && now-(p.offAt||now) > GRACE){ LV.players.delete(k); changed=true; }
+  }
+  if (now-(LV.lastHB||0) > HB){ LV.lastHB=now; for (const p of LV.players.values()) if (p.on && p.conn && p.conn.open){ try{ p.conn.send({t:'p'}); }catch(e){} } }
+  if (changed) broadcast();
 }
 function plist(){
   if (LV.host){
-    const arr = [...LV.players].map(([key,p])=>({key, nm:p.nm, ans:p.ans, on:p.on}));
+    const arr = [...LV.players].map(([key,p])=>({key, nm:p.nm, ans:p.ans, on:!!p.on}));
     if (LV.plays) arr.unshift({key:'host', nm:LV.nm, ans:LV.myAns, on:true});
     return arr;
   }
@@ -680,17 +719,70 @@ function joinRoom(){
   joinErr = pin.length!==4 ? 'קוד החדר הוא 4 ספרות' : !nm ? 'צריך שם' : !window.Peer ? 'רכיב החיבור לא נטען, רעננו את העמוד' : '';
   if (joinErr){ lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm; return; }
   store.set('pof_me', nm);
-  resetLV(); LV.nm=nm; LV.pin=pin; joinBusy=true; lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm;
-  const fail = msg => { if (!joinBusy) return; joinBusy=false; joinErr=msg; try{LV.peer&&LV.peer.destroy()}catch(e){} lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm; };
-  const to = setTimeout(()=>fail('לא הצלחתי להתחבר לחדר. בדקו את הקוד ושמסך המארח פתוח.'), 15000);
+  const sess = store.get(SESS, null);
+  resetLV(); LV.nm=nm; LV.pin=pin;
+  if (sess && sess.pin===pin && Date.now()-sess.at < 3*3600e3) LV.myKey = sess.key;
+  joinBusy=true; lastHTML=''; render(); $('#jpin').value=pin; $('#jnm').value=nm;
+  connectPlayer(true);
+}
+function connectPlayer(first){
+  clearTimeout(LV.rt); LV.rt=null;
+  try{ LV.peer && LV.peer.destroy(); }catch(e){}
+  LV.conn = null;
+  let done = false;
+  const failed = type => {
+    if (done) return; done = true; clearTimeout(to);
+    if (first && view!=='live'){
+      joinBusy=false; const pin=LV.pin, nm=LV.nm;
+      joinErr = type==='peer-unavailable' ? 'לא נמצא חדר עם הקוד הזה. בדקו שהמארח עדיין בעמוד.' : 'לא הצלחתי להתחבר לחדר. נסו שוב.';
+      try{ LV.peer && LV.peer.destroy(); }catch(e){}
+      lastHTML=''; render(); const a=$('#jpin'), b=$('#jnm'); if (a) a.value=pin; if (b) b.value=nm; return;
+    }
+    lost();
+  };
+  const to = setTimeout(()=>failed('timeout'), 12000);
   const peer = new Peer({debug:0}); LV.peer = peer;
   peer.on('open', ()=>{
-    const conn = peer.connect(PFX+pin, {reliable:true}); LV.conn = conn;
-    conn.on('open', ()=>{ clearTimeout(to); joinBusy=false; conn.send({t:'j', nm}); LV.status='נכנס…'; go('live'); });
-    conn.on('data', d=>{ if (d && d.t==='s'){ LV.g=d.g; LV.pl=d.pl||[]; LV.myKey=d.you; LV.status=''; if (LV.g && LV.myAns.gid!==LV.g.id) LV.myAns={gid:LV.g.id}; liveLoop(true); } });
-    conn.on('close', ()=>{ if (view==='live'){ LV.err='החיבור למארח נותק'; render(); } });
+    const conn = peer.connect(PFX+LV.pin, {reliable:true});
+    conn.on('open', ()=>{
+      if (done) return; done = true; clearTimeout(to);
+      LV.conn = conn; LV.reconn = 0; LV.lastPing = Date.now(); LV.status = '';
+      conn.send({t:'j', nm:LV.nm, key:LV.myKey});
+      if (first){ joinBusy=false; go('live'); keepAwake(); } else render();
+    });
+    conn.on('data', d=>onHostData(conn, d));
+    conn.on('close', ()=>{ if (LV.conn===conn) lost(); });
+    conn.on('error', ()=>{ if (LV.conn===conn) lost(); });
   });
-  peer.on('error', e=>{ clearTimeout(to); fail(e.type==='peer-unavailable' ? 'לא נמצא חדר עם הקוד הזה. בדקו שהמארח עדיין בעמוד.' : 'בעיית חיבור ('+e.type+'). נסו שוב.'); if (view==='live' && !joinBusy){ LV.err='החיבור נותק ('+e.type+')'; render(); } });
+  peer.on('error', e=>{ if (!done) failed(e.type); else if (LV.conn && !LV.conn.open) lost(); });
+  peer.on('disconnected', ()=>{ /* החיבור לשרת התיווך נפל; הערוץ למארח עשוי להמשיך לעבוד */ });
+}
+function onHostData(conn, d){
+  if (!d || conn!==LV.conn) return;
+  LV.lastPing = Date.now();
+  if (d.t==='p'){ try{ conn.send({t:'q'}); }catch(e){} return; }
+  if (d.t!=='s') return;
+  const prevG = LV.g;
+  LV.g = d.g; LV.pl = d.pl||[]; LV.myKey = d.you; LV.status='';
+  store.set(SESS, {pin:LV.pin, nm:LV.nm, key:LV.myKey, at:Date.now()});
+  const me = LV.pl.find(p=>p.key===LV.myKey), g = LV.g;
+  if (!prevG || prevG.id!==g.id) LV.myAns = {};
+  const server = (me && me.ans) || {};
+  // אם עניתי בזמן שהחיבור נפל, לשלוח שוב
+  if (g.st==='q' && LV.myAns['a'+g.i] && !server['a'+g.i]){ const a=LV.myAns['a'+g.i]; try{ conn.send({t:'a', gid:g.id, i:g.i, k:a[0], ms:a[1]}); }catch(e){} }
+  LV.myAns = {...LV.myAns, ...server};
+  liveLoop(true);
+}
+function lost(){
+  if (LV.left || LV.host || LV.rt) return;
+  LV.conn = null; LV.reconn = (LV.reconn||0)+1;
+  if (LV.reconn > 30){ LV.err='לא הצלחתי להתחבר שוב לחדר. ייתכן שהמארח סגר אותו.'; store.set(SESS,null); render(); return; }
+  LV.status='החיבור נפל, מתחבר מחדש…'; render();
+  LV.rt = setTimeout(()=>{ LV.rt=null; connectPlayer(false); }, Math.min(5000, 600*LV.reconn));
+}
+function playerWatchdog(){
+  if (LV.host || LV.left || !LV.pin || view!=='live' || LV.err) return;
+  if (LV.conn && Date.now()-LV.lastPing > HB_DEAD){ try{ LV.conn.close(); }catch(e){} LV.conn=null; lost(); }
 }
 function lvAnswer(k){
   const g = LV.g; if (!g || g.st!=='q') return;
@@ -699,9 +791,20 @@ function lvAnswer(k){
   if (LV.host){ if (!LV.plays || LV.myAns[key]) return; LV.myAns[key]=[k,ms]; broadcast(); liveLoop(true); return; }
   if (LV.myAns[key]) return;
   LV.myAns[key] = [k, ms];
-  try{ LV.conn.send({t:'a', gid:g.id, i:g.i, k, ms}); }catch(e){}
+  try{ LV.conn && LV.conn.send({t:'a', gid:g.id, i:g.i, k, ms}); }catch(e){}
   render();
 }
+function leaveRoom(){
+  LV.left = true;
+  if (!LV.host){ try{ LV.conn && LV.conn.send({t:'bye'}); }catch(e){} store.set(SESS, null); }
+  setTimeout(()=>{ resetLV(); }, 150); go('home');
+}
+document.addEventListener('visibilitychange', ()=>{
+  if (document.visibilityState!=='visible' || view!=='live') return;
+  keepAwake();
+  if (LV.host) hostEnsure();
+  else if (!LV.left && !LV.err && (!LV.conn || !LV.conn.open || Date.now()-LV.lastPing > 6000)){ LV.reconn=0; clearTimeout(LV.rt); LV.rt=null; connectPlayer(false); }
+});
 
 // ---- לוגיקה משותפת ----
 function lvQ(g,i){ const k=g.id+':'+i; return LV.qc[k] || (LV.qc[k]=buildQ(g.qs[i])); }
@@ -715,6 +818,7 @@ function lvScores(g){
 const meKey = () => LV.host ? 'host' : LV.myKey;
 function liveLoop(force){
   const g = LV.g;
+  hostHousekeeping(); playerWatchdog();
   if (LV.host && g){
     const now = Date.now();
     if (g.st==='pre' && now-g.at >= PRE){ lvSet({st:'q'}); return; }
@@ -738,7 +842,8 @@ function liveHTML(){
   if (LV.err) return `${top}<div class="card center"><h3>${esc(LV.err)}</h3><div class="gap"></div><button class="btn dark" data-act="leave">חזרה</button></div>`;
   const g = LV.g;
   if (!g) return `${top}<div class="pre"><div class="wait"><i></i><i></i><i></i></div><h2>${esc(LV.status||'מתחבר…')}</h2></div>`;
-  return LV.host ? hostHTML(g, top) : playerHTML(g, top);
+  const banner = !LV.host && LV.status ? `<div class="center" style="margin:0 0 10px"><span class="count" style="background:#ec5444">📡 ${esc(LV.status)}</span></div>` : '';
+  return LV.host ? hostHTML(g, top) : (banner + playerHTML(g, top));
 }
 function hostHTML(g, top){
   const ps = plist(), on = ps.filter(p=>p.on), n = g.qs.length;
@@ -755,7 +860,7 @@ function hostHTML(g, top){
     return `${top}<div class="fade"><div class="pinbox"><div class="l">קוד החדר</div><div class="pin">${esc(LV.pin)}</div>
        <div class="gap"></div><button class="btn dark" data-act="copy" data-text="${esc('בואו לשחק פתגם או פייק! 🎯 '+link)}">העתקת קישור הזמנה</button><div class="note" id="copied"></div></div>
       <div class="center"><span class="count">👥 ${on.length} ${on.length===1?'שחקן':'שחקנים'}</span></div>
-      <div class="players">${ps.length?ps.map(p=>`<span class="pl ${p.key==='host'?'me':''}" style="${p.on?'':'opacity:.4'}">${esc(p.nm)}</span>`).join(''):'<div class="dim-txt" style="padding:14px">מחכים לשחקנים…</div>'}</div>
+      <div class="players">${ps.length?ps.map(p=>`<span class="pl ${p.key==='host'?'me':''}" style="${p.on?'':'opacity:.45'}">${p.on?'':'⏳ '}${esc(p.nm)}</span>`).join(''):'<div class="dim-txt" style="padding:14px">מחכים לשחקנים…</div>'}</div>
       <div class="card">${settings}<div class="gap2"></div><button class="btn go" data-act="start" ${on.length?'':'disabled'}>התחל ▶</button></div></div>`;
   }
   const q = lvQ(g, g.i);
@@ -802,7 +907,7 @@ function playerHTML(g, top){
   }
   const rows = lvScores(g), my = rows.find(r=>r.key===mk);
   const state = !mineA ? 'none' : mineA[0]===q.correct ? 'ok' : 'no';
-  return fbHTML({state, pts: state==='ok'?pointsFor(mineA[1],g.t):0, streak: my?my.streak:0, place: my ? rankOf(rows, my.key)+` · <span dir="ltr">${my.sc}</span> נק׳` : '', q});
+  return fbHTML({state, pts: state==='ok'?pointsFor(mineA[1],g.t):0, streak: my?my.streak:0, place: my ? [rankOf(rows, my.key), `<span dir="ltr">${my.sc}</span> נק׳`].filter(Boolean).join(' · ') : '', q});
 }
 
 // ===================== אירועים =====================
@@ -819,7 +924,7 @@ app.addEventListener('click', e=>{
     case 'next': lvNext(); window.scrollTo(0,0); break;
     case 'skip': lvSet({st:'rev'}); break;
     case 'ans': lvAnswer(+b.dataset.k); break;
-    case 'leave': resetLV(); go('home'); break;
+    case 'leave': leaveRoom(); break;
     case 'copy': {
       const t=b.dataset.text, out=$('#copied');
       try{ navigator.clipboard.writeText(t).then(()=>{ if(out) out.textContent='הועתק ✓ שלחו בוואטסאפ'; }, ()=>{ if(out) out.textContent=t; }); }catch(err){ if(out) out.textContent=t; }
@@ -832,7 +937,15 @@ app.addEventListener('input', e=>{
 });
 app.addEventListener('change', e=>{ if (e.target.id==='hostnm'){ lastHTML=''; render(); } });
 window.addEventListener('beforeunload', e=>{ if (LV.host && LV.g && LV.g.st!=='lobby' && LV.g.st!=='end'){ e.preventDefault(); e.returnValue=''; } });
-if (prefillPin) view='join';
+(function(){
+  const sess = store.get(SESS, null);
+  if (sess && sess.pin && Date.now()-sess.at < 3*3600e3 && (!prefillPin || prefillPin===sess.pin) && window.Peer){
+    resetLV(); LV.nm=sess.nm; LV.pin=sess.pin; LV.myKey=sess.key; LV.status='מתחבר חזרה לחדר '+sess.pin+'…'; view='live';
+    LV.reconn = 25; // ניסיונות מעטים: אם החדר כבר לא קיים, לא לתקוע את המשתמש
+    connectPlayer(false); return;
+  }
+  if (prefillPin) view='join';
+})();
 render();
 </script>
 </body>
